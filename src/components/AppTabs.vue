@@ -15,49 +15,31 @@
             </div>
         </header>
 
-        <!-- Hamburger Menu for Mobile -->
-        <!-- <header class="mobile-header" v-else>
-            <div class="hamburger" @click="toggleMenu">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-            <nav class="nav" :class="{ open: isMenuOpen }">
-                <div class="tabs-content">
-                    <a href="#" class="tab-link live-tv" @click.prevent="selectTab('live-tv')"><span>Live TV</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('markets')"><span>Markets</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('economics')"><span>Economics</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('industries')"><span>Industries</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('tech')"><span>Tech</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('politics')"><span>Politics</span></a>
-                    <a href="#" class="tab-link"
-                        @click.prevent="selectTab('businessweek')"><span>Businessweek</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('opinion')"><span>Opinion</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('more')"><span>More</span></a>
-                </div>
-            </nav>
-        </header> -->
-
         <!-- Tab Content -->
-        <div class="tab-content">
-            <RssWall :visible="selectedTab === 'markets'" />
+        <div class="tab-content" :class="{ 'no-max-width': selectedTab === 'live-tv' }">
+            <!-- Conditionally render LiveTv and RssWall components -->
+            <LiveTv v-if="selectedTab === 'live-tv'" />
+            <RssWall v-else-if="selectedTab === 'markets'" />
+            <!-- Add additional tabs/components here as needed -->
         </div>
     </div>
 </template>
 
 <script>
 import RssWall from "./RssWall.vue";
+import LiveTv from "./LiveTv.vue";
 
 export default {
     name: "AppTabsRow",
     components: {
         RssWall,
+        LiveTv,
     },
     data() {
         return {
             isMobile: window.innerWidth <= 768,
             isMenuOpen: false,
-            selectedTab: "websites",
+            selectedTab: "markets",
         };
     },
     methods: {
@@ -102,6 +84,7 @@ export default {
     justify-content: center;
 }
 
+/* 
 .tabs-content {
     max-width: 90%;
     max-width: 1400px;
@@ -109,6 +92,21 @@ export default {
     padding: 0 20px;
     display: flex;
     justify-content: space-around;
+} */
+
+.tab-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    /* padding: 20px; */
+    transition: max-width 0.3s ease, margin 0.3s ease;
+    /* Smooth transition for styling changes */
+}
+
+/* When LiveTv is selected, remove max-width and center-align */
+.tab-content.no-max-width {
+    max-width: none;
+    margin: 0;
+    width: 100%;
 }
 
 .tab-link {
