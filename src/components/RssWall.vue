@@ -1,7 +1,8 @@
 <template>
     <div class="rss-wall">
-        <iframe id="rss-widget" width="100%" :height="iframeHeight" src="https://rss.app/embed/v1/wall/tK9EXetq9sbcI2oz"
-            frameborder="0" loading="lazy" title="RSS Feed Wall"></iframe>
+        <iframe id="rss-widget" width="100vw" :height="iframeHeight"
+            src="https://rss.app/embed/v1/wall/tK9EXetq9sbcI2oz" frameborder="0" loading="lazy"
+            title="RSS Feed Wall"></iframe>
     </div>
 </template>
 
@@ -18,7 +19,7 @@ export default {
             const headerHeight = document.querySelector(".header")?.offsetHeight || 0;
             const tabsHeight = document.querySelector(".tabs-row")?.offsetHeight || 0;
             const viewportHeight = window.innerHeight;
-            this.iframeHeight = `${viewportHeight - headerHeight - tabsHeight - 50}px`;
+            this.iframeHeight = `${viewportHeight - headerHeight - tabsHeight}px`;
         },
     },
     mounted() {
