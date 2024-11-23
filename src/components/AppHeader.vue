@@ -155,39 +155,48 @@ export default {
 }
 
 /* Mobile Navigation */
+/* Mobile Navigation */
 .nav {
-    display: none;
+    display: flex;
     flex-direction: column;
     position: fixed;
-    /* Covers the entire screen */
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     background-color: #111;
     z-index: 1500;
-    /* Below header but above overlay */
     padding: 20px;
     border-top: 1px solid #444;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    transform: translateY(-20px);
     opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+    /* Add a slight scale effect along with translation */
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    /* Smoother transition */
+    pointer-events: none;
+    /* Prevent interaction when hidden */
 }
 
 .nav.open {
-    display: flex;
-    transform: translateY(0);
     opacity: 1;
+    transform: scale(1) translateY(0);
+    /* Reset scale and translation */
+    pointer-events: all;
+    /* Allow interaction */
 }
 
-/* Tabs Inside Hamburger */
 .tabs-content {
     display: flex;
     flex-direction: column;
+    /* Stack items vertically */
     align-items: flex-start;
+    /* Align items to the left */
+    gap: 15px;
+    /* Add spacing between items */
     padding: 0;
     width: 100%;
 }
+
 
 /* Rectangle Hover Effect */
 .tab-link {
@@ -210,7 +219,6 @@ export default {
     height: 100%;
     background-color: #555;
     transform: scaleY(0);
-    /* Hidden initially */
     transform-origin: bottom;
     transition: transform 0.3s ease;
     z-index: 1;
