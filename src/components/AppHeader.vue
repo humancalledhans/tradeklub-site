@@ -1,0 +1,223 @@
+<template>
+    <header class="header">
+        <div class="header-content">
+            <!-- Logo -->
+            <div class="logo">TradeKlub</div>
+
+            <!-- Hamburger Menu -->
+            <div class="hamburger" @click="toggleMenu" :class="{ open: isMenuOpen }">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+
+            <!-- Mobile Navigation -->
+            <nav class="nav" :class="{ open: isMenuOpen }">
+                <div class="tabs-content">
+                    <a href="#" class="tab-link live-tv" @click.prevent="selectTab('live-tv')"><span>Live TV</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('markets')"><span>Markets</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('economics')"><span>Economics</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('industries')"><span>Industries</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('tech')"><span>Tech</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('politics')"><span>Politics</span></a>
+                    <a href="#" class="tab-link"
+                        @click.prevent="selectTab('businessweek')"><span>Businessweek</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('opinion')"><span>Opinion</span></a>
+                    <a href="#" class="tab-link" @click.prevent="selectTab('more')"><span>More</span></a>
+                </div>
+            </nav>
+        </div>
+    </header>
+</template>
+
+<script>
+export default {
+    name: "AppHeader",
+    data() {
+        return {
+            isMenuOpen: false, // Tracks if the mobile menu is open
+        };
+    },
+    methods: {
+        toggleMenu() {
+            this.isMenuOpen = !this.isMenuOpen; // Toggles the menu visibility
+        },
+        selectTab(tabName) {
+            console.log(`Tab selected: ${tabName}`);
+            this.isMenuOpen = false; // Close the menu after selecting a tab
+        },
+    },
+};
+</script>
+
+<style scoped>
+/* General Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Full-width header */
+.header {
+    width: 100%;
+    background-color: #000;
+    color: #fff;
+    padding: 10px 0;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    z-index: 1000;
+}
+
+/* Header Content */
+.header-content {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    position: relative;
+}
+
+/* Logo */
+.logo {
+    font-size: 36px;
+    font-weight: bold;
+    color: #fff;
+}
+
+/* Hamburger Menu */
+.hamburger {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.hamburger span {
+    background-color: #fff;
+    height: 3px;
+    width: 30px;
+    border-radius: 3px;
+    transition: all 0.3s ease;
+}
+
+/* Rotate hamburger lines on menu open */
+.hamburger.open span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.hamburger.open span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+    transform: rotate(-45deg) translate(5px, -5px);
+}
+
+/* Mobile Navigation */
+.nav {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #111;
+    width: 100%;
+    padding: 20px;
+    z-index: 10;
+    border-top: 1px solid #444;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    transform: translateY(-20px);
+    opacity: 0;
+}
+
+.nav.open {
+    display: flex;
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Tabs Inside Hamburger */
+.tabs-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0;
+    width: 100%;
+}
+
+/* Rectangle Hover Effect */
+.tab-link {
+    position: relative;
+    text-decoration: none;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 16px;
+    width: 100%;
+    overflow: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.tab-link::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    /* Full height for the rectangle */
+    background-color: #555;
+    transform: scaleY(0);
+    /* Hidden initially */
+    transform-origin: bottom;
+    transition: transform 0.3s ease;
+    z-index: 1;
+}
+
+.tab-link:hover::after {
+    transform: scaleY(1);
+    /* Rectangle appears on hover */
+}
+
+.tab-link span {
+    position: relative;
+    z-index: 2;
+    /* Ensure text is above the rectangle */
+}
+
+.tab-link.live-tv {
+    color: red;
+    font-weight: bold;
+}
+
+.tab-link.live-tv::before {
+    content: '•';
+    color: red;
+    font-size: 14px;
+    margin-right: 5px;
+    position: relative;
+    top: -1px;
+}
+
+.tab-link.live-tv::after {
+    height: 5px;
+    /* Smaller rectangle for Live TV */
+    background-color: red;
+    /* Red rectangle for Live TV */
+}
+
+.tab-link.live-tv:hover::after {
+    transform: scaleY(1);
+    /* Rectangle appears on hover */
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .hamburger {
+        display: flex;
+    }
+}
+</style>
