@@ -11,6 +11,9 @@
                 <span></span>
             </div>
 
+            <!-- Overlay -->
+            <div class="overlay" :class="{ active: isMenuOpen }"></div>
+
             <!-- Mobile Navigation -->
             <nav class="nav" :class="{ open: isMenuOpen }">
                 <div class="tabs-content">
@@ -41,10 +44,16 @@ export default {
     methods: {
         toggleMenu() {
             this.isMenuOpen = !this.isMenuOpen; // Toggles the menu visibility
+            if (this.isMenuOpen) {
+                document.body.style.overflow = "hidden"; // Disable scrolling
+            } else {
+                document.body.style.overflow = ""; // Re-enable scrolling
+            }
         },
         selectTab(tabName) {
             console.log(`Tab selected: ${tabName}`);
             this.isMenuOpen = false; // Close the menu after selecting a tab
+            document.body.style.overflow = ""; // Re-enable scrolling
         },
     },
 };
@@ -67,7 +76,8 @@ export default {
     position: relative;
     display: flex;
     justify-content: center;
-    z-index: 1000;
+    z-index: 2000;
+    /* Ensure header is above overlay */
 }
 
 /* Header Content */
@@ -79,6 +89,8 @@ export default {
     align-items: center;
     padding: 0 20px;
     position: relative;
+    z-index: 2001;
+    /* Ensure header content is clickable */
 }
 
 /* Logo */
@@ -94,6 +106,9 @@ export default {
     flex-direction: column;
     gap: 5px;
     cursor: pointer;
+    position: relative;
+    z-index: 2002;
+    /* Ensure hamburger is above overlay */
 }
 
 .hamburger span {
@@ -117,17 +132,42 @@ export default {
     transform: rotate(-45deg) translate(5px, -5px);
 }
 
+/* Overlay to freeze background */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    /* Semi-transparent background */
+    z-index: 1000;
+    /* Ensure it's below the header */
+    display: none;
+    pointer-events: none;
+    /* Pass pointer events to underlying elements */
+}
+
+.overlay.active {
+    display: block;
+    pointer-events: all;
+    /* Activate only when needed */
+}
+
 /* Mobile Navigation */
 .nav {
     display: none;
     flex-direction: column;
-    position: absolute;
-    top: 100%;
+    position: fixed;
+    /* Covers the entire screen */
+    top: 0;
     left: 0;
-    background-color: #111;
     width: 100%;
+    height: 100%;
+    background-color: #111;
+    z-index: 1500;
+    /* Below header but above overlay */
     padding: 20px;
-    z-index: 10;
     border-top: 1px solid #444;
     transition: transform 0.3s ease, opacity 0.3s ease;
     transform: translateY(-20px);
@@ -168,7 +208,6 @@ export default {
     right: 0;
     bottom: 0;
     height: 100%;
-    /* Full height for the rectangle */
     background-color: #555;
     transform: scaleY(0);
     /* Hidden initially */
@@ -179,13 +218,11 @@ export default {
 
 .tab-link:hover::after {
     transform: scaleY(1);
-    /* Rectangle appears on hover */
 }
 
 .tab-link span {
     position: relative;
     z-index: 2;
-    /* Ensure text is above the rectangle */
 }
 
 .tab-link.live-tv {
@@ -204,14 +241,11 @@ export default {
 
 .tab-link.live-tv::after {
     height: 5px;
-    /* Smaller rectangle for Live TV */
     background-color: red;
-    /* Red rectangle for Live TV */
 }
 
 .tab-link.live-tv:hover::after {
     transform: scaleY(1);
-    /* Rectangle appears on hover */
 }
 
 /* Responsive Styles */
