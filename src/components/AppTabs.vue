@@ -63,6 +63,14 @@ export default {
     methods: {
         selectTab(tabName) {
             this.selectedTab = tabName;
+
+            // Disable vertical scrolling when "markets" tab is selected
+            if (tabName === "markets") {
+                document.body.style.overflowY = "hidden";
+            } else {
+                document.body.style.overflowY = ""; // Restore default scrolling
+            }
+
             this.isMenuOpen = false; // Close the menu after selecting a tab
         },
         toggleMenu() {
