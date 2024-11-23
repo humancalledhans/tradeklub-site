@@ -155,7 +155,6 @@ export default {
 }
 
 /* Mobile Navigation */
-/* Mobile Navigation */
 .nav {
     display: flex;
     flex-direction: column;
@@ -207,6 +206,7 @@ export default {
     font-size: 16px;
     width: 100%;
     overflow: hidden;
+    z-index: 0;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -221,7 +221,7 @@ export default {
     transform: scaleY(0);
     transform-origin: bottom;
     transition: transform 0.3s ease;
-    z-index: 1;
+    z-index: -1;
 }
 
 .tab-link:hover::after {
