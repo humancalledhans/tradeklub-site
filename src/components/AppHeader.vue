@@ -12,21 +12,39 @@
             </div>
 
             <!-- Overlay -->
-            <div class="overlay" :class="{ active: isMenuOpen }"></div>
+            <div class="overlay" :class="{ active: isMenuOpen }" @click="closeMenu"></div>
 
             <!-- Mobile Navigation -->
             <nav class="nav" :class="{ open: isMenuOpen }">
                 <div class="tabs-content">
-                    <a href="#" class="tab-link live-tv" @click.prevent="selectTab('live-tv')"><span>Live TV</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('markets')"><span>Markets</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('economics')"><span>Economics</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('industries')"><span>Industries</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('tech')"><span>Tech</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('politics')"><span>Politics</span></a>
-                    <a href="#" class="tab-link"
-                        @click.prevent="selectTab('businessweek')"><span>Businessweek</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('opinion')"><span>Opinion</span></a>
-                    <a href="#" class="tab-link" @click.prevent="selectTab('more')"><span>More</span></a>
+                    <!-- Call closeMenu in a wrapper function -->
+                    <router-link to="/live-tv" class="tab-link live-tv" @click="handleLinkClick">
+                        <span>Live TV</span>
+                    </router-link>
+                    <router-link to="/markets" class="tab-link" @click="handleLinkClick">
+                        <span>Markets</span>
+                    </router-link>
+                    <router-link to="/economics" class="tab-link" @click="handleLinkClick">
+                        <span>Economics</span>
+                    </router-link>
+                    <router-link to="/industries" class="tab-link" @click="handleLinkClick">
+                        <span>Industries</span>
+                    </router-link>
+                    <router-link to="/tech" class="tab-link" @click="handleLinkClick">
+                        <span>Tech</span>
+                    </router-link>
+                    <router-link to="/politics" class="tab-link" @click="handleLinkClick">
+                        <span>Politics</span>
+                    </router-link>
+                    <router-link to="/businessweek" class="tab-link" @click="handleLinkClick">
+                        <span>Businessweek</span>
+                    </router-link>
+                    <router-link to="/opinion" class="tab-link" @click="handleLinkClick">
+                        <span>Opinion</span>
+                    </router-link>
+                    <router-link to="/more" class="tab-link" @click="handleLinkClick">
+                        <span>More</span>
+                    </router-link>
                 </div>
             </nav>
         </div>
@@ -43,21 +61,21 @@ export default {
     },
     methods: {
         toggleMenu() {
-            this.isMenuOpen = !this.isMenuOpen; // Toggles the menu visibility
-            if (this.isMenuOpen) {
-                document.body.style.overflow = "hidden"; // Disable scrolling
-            } else {
-                document.body.style.overflow = ""; // Re-enable scrolling
-            }
+            this.isMenuOpen = !this.isMenuOpen;
+            document.body.style.overflow = this.isMenuOpen ? "hidden" : ""; // Disable/enable scrolling
         },
-        selectTab(tabName) {
-            console.log(`Tab selected: ${tabName}`);
-            this.isMenuOpen = false; // Close the menu after selecting a tab
+        closeMenu() {
+            this.isMenuOpen = false; // Close the menu
             document.body.style.overflow = ""; // Re-enable scrolling
+        },
+        handleLinkClick() {
+            // Handles link clicks by closing the menu
+            this.closeMenu();
         },
     },
 };
 </script>
+
 
 <style scoped>
 /* General Reset */

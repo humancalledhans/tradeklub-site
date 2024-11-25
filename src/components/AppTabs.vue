@@ -3,65 +3,36 @@
         <!-- Tabs Row -->
         <header class="tabs-row" v-if="!isMobile">
             <div class="tabs-content">
-                <a href="#" class="tab-link live-tv" @click.prevent="selectTab('live-tv')"><span>Live TV</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('markets')"><span>Markets</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('economics')"><span>Economics</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('industries')"><span>Industries</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('tech')"><span>Tech</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('politics')"><span>Politics</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('businessweek')"><span>Businessweek</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('opinion')"><span>Opinion</span></a>
-                <a href="#" class="tab-link" @click.prevent="selectTab('more')"><span>More</span></a>
+                <router-link to="/live-tv" class="tab-link live-tv"><span>Live TV</span></router-link>
+                <router-link to="/markets" class="tab-link"><span>Markets</span></router-link>
+                <!-- Add additional router-links for other tabs -->
             </div>
         </header>
 
         <!-- Tab Content -->
-        <div class="tab-content" :class="{ 'no-max-width': selectedTab === 'live-tv' }">
-            <!-- Conditionally render LiveTv and RssWall components -->
-            <LiveTv v-if="selectedTab === 'live-tv'" />
-            <RssWall v-else-if="selectedTab === 'markets'" />
-            <!-- Add additional tabs/components here as needed -->
+        <div class="tab-content" :class="{ 'no-max-width': $route.name === 'LiveTv' }">
+            <router-view />
         </div>
     </div>
 </template>
 
 <script>
-import RssWall from "./RssWall.vue";
-import LiveTv from "./LiveTv.vue";
-
 export default {
     name: "AppTabsRow",
-    components: {
-        RssWall,
-        LiveTv,
-    },
     data() {
         return {
             isMobile: window.innerWidth <= 768,
             isMenuOpen: false,
-            selectedTab: "markets",
         };
     },
     methods: {
-        selectTab(tabName) {
-            this.selectedTab = tabName;
-
-            // Disable vertical scrolling when "markets" tab is selected
-            if (tabName === "markets") {
-                document.body.style.overflowY = "hidden";
-            } else {
-                document.body.style.overflowY = ""; // Restore default scrolling
-            }
-
-            this.isMenuOpen = false; // Close the menu after selecting a tab
-        },
         toggleMenu() {
             this.isMenuOpen = !this.isMenuOpen;
         },
         handleResize() {
             this.isMobile = window.innerWidth <= 768;
             if (!this.isMobile) {
-                this.isMenuOpen = false; // Ensure the menu is closed on desktop
+                this.isMenuOpen = false;
             }
         },
     },
