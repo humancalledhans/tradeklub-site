@@ -49,7 +49,7 @@ export default {
 /* Tabs row styles */
 .tabs-row {
     display: flex;
-    background-color: #333;
+    background-color: #162D5D;
     padding: 10px 0;
     margin: 0;
     width: 100%;

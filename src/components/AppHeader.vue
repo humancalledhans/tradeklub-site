@@ -24,7 +24,7 @@
                     <router-link to="/markets" class="tab-link" @click="handleLinkClick">
                         <span>Markets</span>
                     </router-link>
-                    <router-link to="/economics" class="tab-link" @click="handleLinkClick">
+                    <!-- <router-link to="/economics" class="tab-link" @click="handleLinkClick">
                         <span>Economics</span>
                     </router-link>
                     <router-link to="/industries" class="tab-link" @click="handleLinkClick">
@@ -44,7 +44,7 @@
                     </router-link>
                     <router-link to="/more" class="tab-link" @click="handleLinkClick">
                         <span>More</span>
-                    </router-link>
+                    </router-link> -->
                 </div>
             </nav>
         </div>
@@ -88,7 +88,7 @@ export default {
 /* Full-width header */
 .header {
     width: 100%;
-    background-color: #000;
+    background-color: #0F182A;
     color: #fff;
     padding: 10px 0;
     position: relative;
@@ -158,6 +158,7 @@ export default {
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
+    /* background-color: #162D5D; */
     /* Semi-transparent background */
     z-index: 1000;
     /* Ensure it's below the header */
