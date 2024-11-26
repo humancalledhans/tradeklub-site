@@ -2,7 +2,10 @@
     <header class="header">
         <div class="header-content">
             <!-- Logo -->
-            <div class="logo">TradeKlub</div>
+            <div class="logo-container">
+                <img src="@/assets/logo.png" alt="TradeKlub Logo" class="logo-image" />
+                <div class="logo">TradeKlub</div>
+            </div>
 
             <!-- Hamburger Menu -->
             <div class="hamburger" @click="toggleMenu" :class="{ open: isMenuOpen }">
@@ -280,5 +283,16 @@ export default {
     .hamburger {
         display: flex;
     }
+}
+
+.logo-image {
+    height: 40px; /* Adjust to fit your design */
+    width: auto;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Space between the logo image and text */
 }
 </style>
