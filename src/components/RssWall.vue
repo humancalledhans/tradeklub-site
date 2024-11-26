@@ -1,22 +1,41 @@
 <template>
-    <!-- <div class="rss-wall">
-        <div v-if="!iframeLoaded" class="loading-placeholder">
-            <div v-for="n in 5" :key="n" class="loading-box"></div>
+    <div class="rss-wall-layout">
+        <!-- TradingView Ticker Tape Widget -->
+        <div class="ticker-widget-container" ref="tickerWidgetContainer">
+            <div class="tradingview-widget-container">
+                <div style="width: 100%;" class="tradingview-widget-container__widget"></div>
+            </div>
         </div>
-        <iframe v-else id="rss-widget" width="100vw" :height="iframeHeight"
-            src="https://rss.app/embed/v1/wall/tK9EXetq9sbcI2oz" frameborder="0" loading="lazy"
-            title="RSS Feed Wall"></iframe>
-    </div> -->
-    <div class="rss-wall">
-        <!-- Loading Animation -->
-        <div v-show="!fadeOutComplete" :class="{ 'fade-out': iframeLoaded }" class="loading-placeholder">
-            <div v-for="(height, index) in loadingBoxHeights" :key="index" class="loading-box"
-                :style="{ height: height + 'px' }"></div>
+
+        <!-- RSS Wall -->
+        <div class="rss-wall">
+            <!-- Loading Animation -->
+            <div
+                v-show="!fadeOutComplete"
+                :class="{ 'fade-out': iframeLoaded }"
+                class="loading-placeholder"
+            >
+                <div
+                    v-for="(height, index) in loadingBoxHeights"
+                    :key="index"
+                    class="loading-box"
+                    :style="{ height: height + 'px' }"
+                ></div>
+            </div>
+
+            <!-- Iframe -->
+            <iframe
+                id="rss-widget"
+                :class="{ 'fade-in': iframeLoaded }"
+                width="100vw"
+                :height="iframeHeight"
+                src="https://rss.app/embed/v1/wall/tK9EXetq9sbcI2oz"
+                frameborder="0"
+                loading="lazy"
+                @load="onIframeLoad"
+                title="RSS Feed Wall"
+            ></iframe>
         </div>
-        <!-- Iframe -->
-        <iframe id="rss-widget" :class="{ 'fade-in': iframeLoaded }" width="100vw" :height="iframeHeight"
-            src="https://rss.app/embed/v1/wall/tK9EXetq9sbcI2oz" frameborder="0" loading="lazy" @load="onIframeLoad"
-            title="RSS Feed Wall"></iframe>
     </div>
 </template>
 
@@ -29,29 +48,61 @@ export default {
             iframeLoaded: false, // Whether the iframe is loaded
             fadeOutComplete: false, // Tracks when fade-out animation is done
             loadingBoxHeights: [], // Heights for the loading boxes
-            iframeLoadCheckInterval: null, // Fallback interval
         };
     },
     methods: {
         calculateHeight() {
             const headerHeight = document.querySelector(".header")?.offsetHeight || 0;
             const tabsHeight = document.querySelector(".tabs-row")?.offsetHeight || 0;
+            const tickerWidgetHeight = document.querySelector(".ticker-widget-container")?.offsetHeight || 0;
             const viewportHeight = window.innerHeight;
-            this.iframeHeight = `${viewportHeight - headerHeight - tabsHeight}px`;
+
+            this.iframeHeight = `${viewportHeight - headerHeight - tabsHeight - tickerWidgetHeight}px`;
+        },
+        initializeTickerWidget() {
+            const container = this.$refs.tickerWidgetContainer;
+
+            if (container) {
+                container.innerHTML = `
+                    <div class="tradingview-widget-container">
+                        <div style="width: 100%;" class="tradingview-widget-container__widget"></div>
+                    </div>`;
+
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src =
+                    "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+                script.async = true;
+
+                script.text = JSON.stringify({
+                    symbols: [
+                        { proName: "FOREXCOM:SPXUSD", title: "S&P 500 Index" },
+                        { proName: "FOREXCOM:NSXUSD", title: "US 100 Cash CFD" },
+                        { proName: "FX_IDC:EURUSD", title: "EUR to USD" },
+                        { proName: "BITSTAMP:BTCUSD", title: "Bitcoin" },
+                        { proName: "BITSTAMP:ETHUSD", title: "Ethereum" },
+                    ],
+                    showSymbolLogo: true,
+                    isTransparent: true,
+                    displayMode: "adaptive",
+                    colorTheme: "light",
+                    locale: "en",
+                });
+
+                container.appendChild(script);
+            }
         },
         generateBoxHeights() {
-            const deviceWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
-            const minBoxWidth = 300; // Matches min-width in grid-template-columns
-            const columns = Math.floor(deviceWidth / minBoxWidth); // Number of columns
-            const rowsPerColumn = 3; // Number of boxes per column (adjust as needed)
+            const numberOfBoxes = 6; // Number of loading boxes
+            const boxHeight = Math.floor(viewportHeight / numberOfBoxes);
 
-            this.loadingBoxHeights = Array.from({ length: columns * rowsPerColumn }, () =>
-                Math.floor(Math.random() * (viewportHeight / rowsPerColumn) * 0.7 + 100)
+            // Generate heights for each box
+            this.loadingBoxHeights = Array.from({ length: numberOfBoxes }, () =>
+                Math.max(boxHeight - 10, 50) // Ensure a minimum height of 50px
             );
         },
         onIframeLoad() {
-            console.log("Iframe load event triggered.");
             this.iframeLoaded = true; // Start the fade-out animation
 
             // Wait for the fade-out animation to complete before fully hiding the loading placeholder
@@ -59,83 +110,64 @@ export default {
                 this.fadeOutComplete = true; // Hides the loading placeholder
             }, 1000); // Match the CSS fade-out duration (1 second)
         },
-        fallbackIframeCheck() {
-            const iframe = document.getElementById("rss-widget");
-            if (iframe?.contentWindow) {
-                try {
-                    const readyState = iframe.contentWindow.document.readyState;
-                    console.log(`Iframe readyState: ${readyState}`);
-                    if (readyState === "complete") {
-                        this.onIframeLoad(); // Call onIframeLoad for consistent behavior
-                        clearInterval(this.iframeLoadCheckInterval);
-                    }
-                } catch (error) {
-                    console.error("Cross-origin error while checking iframe state:", error);
-                }
-            }
-        },
-        debounceResize(callback, delay = 300) {
-            let timeout;
-            return () => {
-                clearTimeout(timeout);
-                timeout = setTimeout(callback, delay);
-            };
-        },
     },
     mounted() {
         this.calculateHeight(); // Set height on mount
         this.generateBoxHeights();
+        this.initializeTickerWidget(); // Initialize the TradingView widget
 
-        // Start fallback interval for cross-origin check
-        this.iframeLoadCheckInterval = setInterval(this.fallbackIframeCheck, 500);
-
-        // Timeout fallback
-        setTimeout(() => {
-            if (!this.iframeLoaded) {
-                console.log("Iframe load timeout. Removing placeholder.");
-                this.onIframeLoad(); // Trigger fade-out and cleanup
-            }
-        }, 5000); // 5 seconds timeout
-
-        // Handle window resize with debouncing
-        const debouncedResize = this.debounceResize(() => {
-            this.calculateHeight();
-            this.generateBoxHeights();
-        });
-        window.addEventListener("resize", debouncedResize);
+        document.body.style.overflow = "hidden";
     },
     beforeUnmount() {
-        window.removeEventListener("resize", this.calculateHeight); // Clean up listeners
-        clearInterval(this.iframeLoadCheckInterval); // Clear fallback interval
-        console.log("Component unmounted, resources cleaned.");
+        // Re-enable scrolling on the body when the component is destroyed
+        document.body.style.overflow = "auto";
     },
 };
 </script>
 
 <style scoped>
+.rss-wall-layout {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+.ticker-widget-container {
+    width: 100%;
+    background-color: #f0f0f0; /* Matches the light theme */
+    border-bottom: 1px solid #ddd; /* Optional: visual separation */
+    z-index: 100; /* Ensure it stays above other elements */
+    padding: 5px 0;
+}
+
+.tradingview-widget-container {
+    width: 100%;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 0;
+}
+
 .rss-wall {
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
     position: relative;
-    /* Ensure proper stacking of loading boxes and iframe */
 }
 
 iframe {
     width: 100%;
     border: none;
     opacity: 0;
-    /* Start fully transparent */
     transition: opacity 1s ease-in-out;
-    /* Smooth fade-in */
 }
 
 iframe.fade-in {
     opacity: 1;
-    /* Fully visible when iframeLoaded is true */
 }
 
-/* Loading Animation Placeholder */
 .loading-placeholder {
     column-count: 3;
     column-gap: 20px;
@@ -143,23 +175,17 @@ iframe.fade-in {
     padding: 20px;
     box-sizing: border-box;
     opacity: 1;
-    /* Default state: fully visible */
     transition: opacity 1s ease-in-out;
-    /* Smooth fade-out */
     position: absolute;
-    /* Position over the iframe */
     top: 0;
     left: 0;
     right: 0;
     z-index: 1;
-    /* Ensure it sits above the iframe */
 }
 
 .loading-placeholder.fade-out {
     opacity: 0;
-    /* Fades out when iframeLoaded is true */
     pointer-events: none;
-    /* Prevent interactions during fade-out */
 }
 
 .loading-box {
@@ -172,18 +198,14 @@ iframe.fade-in {
     width: 100%;
 }
 
-/* Media Query for Mobile */
 @media (max-width: 768px) {
     .loading-placeholder {
         column-count: 1;
-        /* Single column layout */
         column-gap: 0;
-        /* No gap for single column */
     }
 
     .loading-box {
         margin-bottom: 15px;
-        /* Increase vertical spacing for mobile */
     }
 }
 

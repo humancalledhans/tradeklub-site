@@ -51,7 +51,8 @@ export default {
     display: flex;
     background-color: #333;
     padding: 10px 0;
-    width: 100vw;
+    margin: 0;
+    width: 100%;
     justify-content: center;
 }
 
@@ -66,7 +67,7 @@ export default {
 } */
 
 .tab-content {
-    max-width: 1200px;
+    /* max-width: 1200px; */
     margin: 0 auto;
     /* padding: 20px; */
     transition: max-width 0.3s ease, margin 0.3s ease;
