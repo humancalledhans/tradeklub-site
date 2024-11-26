@@ -95,11 +95,14 @@ export default {
         generateBoxHeights() {
             const viewportHeight = window.innerHeight;
             const numberOfBoxes = 6; // Number of loading boxes
-            const boxHeight = Math.floor(viewportHeight / numberOfBoxes);
 
-            // Generate heights for each box
-            this.loadingBoxHeights = Array.from({ length: numberOfBoxes }, () =>
-                Math.max(boxHeight - 10, 50) // Ensure a minimum height of 50px
+            // Generate random weights for each box
+            const randomWeights = Array.from({ length: numberOfBoxes }, () => Math.random());
+            const totalWeight = randomWeights.reduce((sum, weight) => sum + weight, 0);
+
+            // Calculate heights proportional to the random weights
+            this.loadingBoxHeights = randomWeights.map(weight => 
+                Math.floor((weight / totalWeight) * viewportHeight)
             );
         },
         onIframeLoad() {
