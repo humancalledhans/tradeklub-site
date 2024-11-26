@@ -91,7 +91,7 @@ export default {
 /* Full-width header */
 .header {
     width: 100%;
-    background-color: #0F182A;
+    background-color: #162D5D;
     color: #fff;
     padding: 10px 0;
     position: relative;
