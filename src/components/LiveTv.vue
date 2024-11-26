@@ -100,6 +100,12 @@ export default {
         },
     },
     methods: {
+        disableScrolling() {
+            document.body.style.overflow = "hidden";
+        },
+        enableScrolling() {
+            document.body.style.overflow = "";
+        },
         initializeRssWidget() {
             const container = this.$refs.rssWidgetContainer;
 
@@ -215,6 +221,7 @@ export default {
         },
     },
     mounted() {
+        this.disableScrolling();
         this.calculateHeights();
         this.updateViewportHeight();
         this.initializeTradingViewMiniChartWidgets();
@@ -223,6 +230,7 @@ export default {
         this.initializeTradingViewWidget();
     },
     beforeUnmount() {
+        this.enableScrolling();
         window.removeEventListener("resize", this.calculateHeights);
     },
 };
