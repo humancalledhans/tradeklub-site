@@ -21,6 +21,7 @@
                         ref="rssWidgetIframe" 
                         src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
                         frameborder="0"
+                        scrolling="no"
                         style="width: 100%; height: 100%; box-sizing: border-box;">
                     </iframe>
                 </div>
@@ -46,20 +47,23 @@
         <!-- Third Column -->
         <div class="column third-column">
             <!-- Grid container for widgets -->
-            <div class="grid-container">
-                <div
-                    v-for="(widget, index) in visibleWidgets"
-                    :key="index"
-                    class="grid-item"
-                    :style="{
-                        height: widgetContainerDimensions.widgetHeight + 'px',
-                        width: widgetContainerDimensions.widgetWidth + 'px',
-                    }"
-                >
+            <div 
+                class="scroll-container"
+                ref="scrollContainer"
+                @mouseenter="stopAutoScroll"
+                @mouseleave="startAutoScroll"
+            >
+                <div class="grid-container">
                     <div
-                        class="tradingview-widget-container"
-                        :ref="'tradingViewWidget' + index"
-                    ></div>
+                        v-for="(widget, index) in widgetSymbols"
+                        :key="index"
+                        class="grid-item"
+                    >
+                        <div
+                            class="tradingview-widget-container"
+                            :ref="'tradingViewWidget' + index"
+                        ></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -81,7 +85,10 @@ export default {
             viewportHeight: window.innerHeight,
             viewportWidth: window.innerWidth,
             maxWidgets: 6,
-            widgetSymbols: ["FX:EURUSD", "NASDAQ:AAPL", "TSLA", "CRYPTO:BTCUSD", "GOLD", "MSTR"], // Different widget symbols
+            scrollInterval: null,
+            // widgetSymbols: ["FX:EURUSD", "NASDAQ:AAPL", "TSLA", "CRYPTO:BTCUSD", "GOLD", "MSTR"],
+            widgetSymbols: ["PYTH:QQQ", "CBOE:VX1!", "TVC:VIX", "CME_MINI:NQ1!", "CBOT_MINI:YM1!", "NYMEX:CL1!", "NYMEX:NG1!", "ASX24:GS1!", "CBOT:ZN1!", "CBOT:ZB1!", "CBOT:ZS1!", "CBOT:ZM1!", "CME:6J1!", "CME:6E1!", "OANDA:EURUSD", "CAPITALCOM:USDJPY", "AMEX:SPY", "COINBASE:ETHUSD", "MARKETSCOM:BITCOIN"],
+            currentSymbolIndex: 0,
         };
     },
     computed: {
@@ -105,6 +112,109 @@ export default {
         },
     },
     methods: {
+        preloadClones() {
+            const container = this.$refs.scrollContainer;
+            const gridContainer = container.querySelector(".grid-container");
+
+            if (gridContainer) {
+                // Clone all widgets and append them to the container
+                const widgets = Array.from(gridContainer.children);
+                widgets.forEach((widget, index) => {
+                    const clone = widget.cloneNode(true);
+                    const symbol = this.widgetSymbols[index % this.widgetSymbols.length];
+                    gridContainer.appendChild(clone);
+                    this.initializeTradingViewWidgetForClone(clone, symbol);
+                });
+
+                container.scrollTop = 0; // Reset scroll to the top
+            }
+        },
+        initializeTradingViewWidgetForClone(clonedElement, symbol) {
+            const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
+
+            if (widgetContainer) {
+                // Skip reinitializing if the widget already exists with the correct symbol
+                const existingSymbol = widgetContainer.getAttribute("data-symbol");
+                if (existingSymbol === symbol) return;
+
+                // Clear previous content and set the symbol attribute
+                widgetContainer.innerHTML = "";
+                widgetContainer.setAttribute("data-symbol", symbol);
+
+                // Dynamically create the <script> tag
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src =
+                    "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+                script.async = true;
+
+                // Configuration for the cloned widget
+                script.text = JSON.stringify({
+                    symbol: symbol,
+                    width: "100%",
+                    height: "100%",
+                    locale: "en",
+                    dateRange: "12M",
+                    colorTheme: "dark",
+                    isTransparent: false,
+                    autosize: true,
+                    largeChartUrl: "",
+                });
+
+                widgetContainer.appendChild(script);
+            }
+        },
+        startAutoScroll() {
+            const container = this.$refs.scrollContainer;
+
+            if (container) {
+                let scrollSpeed = 0.5; // Subpixel scrolling speed
+                let cumulativeScroll = 0;
+
+                const scroll = () => {
+                    cumulativeScroll += scrollSpeed;
+
+                    if (cumulativeScroll >= 1) {
+                        container.scrollTop += Math.floor(cumulativeScroll);
+                        cumulativeScroll -= Math.floor(cumulativeScroll);
+                    }
+
+                    // Handle scrolling past the last widget
+                    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 1) {
+                        const gridContainer = container.querySelector(".grid-container");
+                        const firstWidget = gridContainer.firstElementChild;
+
+                        if (firstWidget) {
+                            const clonedWidget = firstWidget.cloneNode(true);
+
+                            // Determine the next symbol
+                            const symbolIndex = (this.currentSymbolIndex++) % this.widgetSymbols.length;
+                            const symbol = this.widgetSymbols[symbolIndex];
+
+                            // Append the cloned widget and initialize it with the correct symbol
+                            gridContainer.appendChild(clonedWidget);
+                            this.initializeTradingViewWidgetForClone(clonedWidget, symbol);
+
+                            // Adjust scroll position to maintain smoothness
+                            const widgetHeight = firstWidget.offsetHeight + 10; // Include gap
+                            container.scrollTop -= widgetHeight;
+
+                            // Remove the original first widget to maintain a consistent number of widgets
+                            setTimeout(() => {
+                                gridContainer.removeChild(firstWidget);
+                            }, 50); // Delay ensures no visual disruption
+                        }
+                    }
+
+                    this.scrollInterval = requestAnimationFrame(scroll);
+                };
+
+                scroll();
+            }
+        },
+        stopAutoScroll() {
+            cancelAnimationFrame(this.scrollInterval); // Stop the scrolling loop
+        },
         disableScrolling() {
             document.body.style.overflow = "hidden";
         },
@@ -161,17 +271,18 @@ export default {
             );
         },
         initializeTradingViewMiniChartWidgets() {
-            this.visibleWidgets.forEach((symbol, index) => {
+            this.widgetSymbols.forEach((symbol, index) => {
                 const widgetContainer = this.$refs[`tradingViewWidget${index}`]?.[0];
 
                 if (widgetContainer) {
                     // Clear previous content
-                    widgetContainer.innerHTML = ""; 
+                    widgetContainer.innerHTML = "";
 
                     // Dynamically create the <script> tag
                     const script = document.createElement("script");
                     script.type = "text/javascript";
-                    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+                    script.src =
+                        "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
                     script.async = true;
 
                     // Configuration for each mini widget
@@ -229,12 +340,18 @@ export default {
         this.calculateHeights();
         this.updateViewportHeight();
         this.initializeTradingViewMiniChartWidgets();
+        
+        // Preload clones
+        this.preloadClones();
+
+        this.startAutoScroll();
         window.addEventListener("resize", this.calculateHeights);
         this.initializeRssWidget();
         this.initializeTradingViewWidget();
     },
     beforeUnmount() {
         this.enableScrolling();
+        this.stopAutoScroll()
         window.removeEventListener("resize", this.calculateHeights);
     },
 };
@@ -352,13 +469,28 @@ export default {
 }
 
 
-/* Grid container for widgets */
+.scroll-container {
+    overflow: hidden; /* Hide scrollbars */
+    height: 100%; /* Fit to parent height */
+    width: 100%; /* Full width */
+    position: relative;
+}
+
 .grid-container {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: column; /* Stack widgets vertically */
+    gap: 10px; /* Add spacing between widgets */
     width: 100%;
-    height: 100%;
+}
+
+.grid-item {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px; /* Consistent widget height */
+    width: 100%;
+    box-sizing: border-box; /* Include padding and borders */
+    transition: transform 0.3s ease; /* Smooth appearance for recycled widgets */
 }
 
 /* Individual grid item */
