@@ -17,7 +17,12 @@
                     Top News
                 </div>
                 <div class="box-wrapper medium rss-widget-wrapper">
-                    <div class="rssapp-widget-container" ref="rssWidgetContainer"></div>
+                    <iframe 
+                        ref="rssWidgetIframe" 
+                        src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
+                        frameborder="0"
+                        style="width: 100%; height: 100%; box-sizing: border-box;">
+                    </iframe>
                 </div>
             </div>
         </div>
@@ -107,21 +112,20 @@ export default {
             document.body.style.overflow = "";
         },
         initializeRssWidget() {
-            const container = this.$refs.rssWidgetContainer;
+            const iframe = this.$refs.rssWidgetIframe;
 
-            if (container) {
-                // Clear previous content
-                container.innerHTML = `
-                    <rssapp-list id="tMxZaYsazbSxiR4r" style="width: 100%; height: 100%; display: block;"></rssapp-list>
-                `;
+            if (iframe) {
+                // Get parent dimensions
+                const parentWidth = iframe.parentElement.offsetWidth;
+                const parentHeight = iframe.parentElement.offsetHeight;
 
-                // Dynamically add the RSS app script
-                const script = document.createElement("script");
-                script.type = "text/javascript";
-                script.src = "https://widget.rss.app/v1/list.js";
-                script.async = true;
+                // Set iframe dimensions dynamically
+                iframe.style.width = `${parentWidth}px`;
+                iframe.style.height = `${parentHeight}px`;
 
-                container.appendChild(script);
+                // Ensure the iframe scales responsively
+                iframe.setAttribute("width", "100%");
+                iframe.setAttribute("height", "100%");
             }
         },
         updateDimensions() {
@@ -311,6 +315,8 @@ export default {
 
 /* General Box Styling */
 .box-wrapper {
+    width: 100%; /* Inherit parent's width */
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -367,20 +373,15 @@ export default {
 }
 
 .rss-widget-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: auto;
-    height: auto;
-    background-color: #f9f9f9; /* Optional: Adjust background */
-    border: 1px solid #ddd; /* Optional: Add a border */
+    width: 100%; /* Fill the parent container */
+    height: 100%; /* Match parent's height */
+    position: relative;
     overflow: hidden; /* Prevent content overflow */
 }
 
-.rssapp-widget-container {
-    width: auto;
-    height: auto;
-    display: block;
-    /* Ensure the container fully occupies the parent */
+.rss-widget-wrapper iframe {
+    width: 100%; /* Ensure iframe scales to container */
+    height: 100%;
+    border: none; /* Remove iframe border */
 }
 </style>
