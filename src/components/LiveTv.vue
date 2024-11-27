@@ -7,7 +7,7 @@
                 <div class="box-left">
                     Tradeklub Television
                 </div>
-                <div class="box-wrapper large">
+                <div class="tv-box-wrapper large">
                     <LiveTVBox />
                 </div>
             </div>
@@ -493,6 +493,15 @@ export default {
     justify-content: center;
 }
 
+.tv-box-wrapper {
+    width: 100%; /* Inherit parent's width */
+    height: 100%;
+    display: flex;
+    align-items: center;
+    aspect-ratio: 16 / 9; 
+    justify-content: center;
+}
+
 .row {
     display: flex;
     width: 100%;
@@ -500,7 +509,6 @@ export default {
 }
 
 .row-tv {
-    aspect-ratio: 16 / 9; 
     display: flex; /* Align children horizontally */
     box-sizing: border-box; /* Ensure padding/border is included in dimensions */
 }
