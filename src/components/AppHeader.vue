@@ -27,6 +27,13 @@
                     <router-link to="/markets" class="tab-link" @click="handleLinkClick">
                         <span>Markets</span>
                     </router-link>
+                    <a 
+                        href="https://www.tradelikethepros.com" 
+                        class="tab-link" 
+                        target="_blank" 
+                        rel="noopener noreferrer">
+                        <span>Courses</span>
+                    </a>
                     <!-- <router-link to="/economics" class="tab-link" @click="handleLinkClick">
                         <span>Economics</span>
                     </router-link>

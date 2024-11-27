@@ -5,6 +5,13 @@
             <div class="tabs-content">
                 <router-link to="/live-tv" class="tab-link live-tv"><span>Live TV</span></router-link>
                 <router-link to="/markets" class="tab-link"><span>Markets</span></router-link>
+                <a 
+                    href="https://www.tradelikethepros.com" 
+                    class="tab-link" 
+                    target="_blank" 
+                    rel="noopener noreferrer">
+                    <span>Courses</span>
+                </a>
                 <!-- Add additional router-links for other tabs -->
             </div>
         </header>

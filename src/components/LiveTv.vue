@@ -230,10 +230,10 @@ export default {
                             const widgetHeight = firstWidget.offsetHeight + 10; // Include gap
                             container.scrollTop -= widgetHeight;
 
-                            // Remove the original first widget to maintain a consistent number of widgets
-                            setTimeout(() => {
+                            // Safely remove the original first widget if it's still part of gridContainer
+                            if (gridContainer.contains(firstWidget)) {
                                 gridContainer.removeChild(firstWidget);
-                            }, 50); // Delay ensures no visual disruption
+                            }
                         }
                     }
 
@@ -461,6 +461,27 @@ export default {
 .third-column .tall {
     flex: 1;
     /* Full height */
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+    .live-tv-layout {
+        flex-direction: column;
+    }
+
+    .column {
+        display: none;
+    }
+
+    .first-column {
+        display: flex;
+        width: 100%;
+        flex: none; /* Remove flex grow/shrink */
+    }
+
+    .live-tv-layout .box-left {
+        display: none !important;
+    }
 }
 
 /* General Box Styling */
