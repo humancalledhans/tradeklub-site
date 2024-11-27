@@ -40,7 +40,7 @@
             </div>
             <!-- Bottom Small Box (1/5 Height of Second Column) -->
             <div class="box-wrapper center-small">
-                <LiveTVBox />
+                <div class="tradingview-widget-container" ref="tradingViewEventsWidget"></div>
             </div>
         </div>
 
@@ -112,6 +112,37 @@ export default {
         },
     },
     methods: {
+        initializeTradingViewEventsWidget() {
+            const container = this.$refs.tradingViewEventsWidget;
+
+            if (container) {
+                // Clear existing content
+                container.innerHTML = `
+                    <div class="tradingview-widget-container__widget"></div>
+                `;
+
+                // Dynamically create and append the script tag
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-events.js";
+                script.async = true;
+
+                // Configure the widget
+                script.text = JSON.stringify({
+                    width: "100%",
+                    height: "100%",
+                    colorTheme: "dark",
+                    isTransparent: false,
+                    locale: "en",
+                    importanceFilter: "-1,0,1",
+                    countryFilter: "ar,au,br,ca,cn,fr,de,in,id,it,jp,kr,mx,ru,sa,za,tr,gb,us,eu",
+                });
+
+                container.appendChild(script);
+            } else {
+                console.error("TradingView Events Widget container not found.");
+            }
+        },
         preloadClones() {
             const container = this.$refs.scrollContainer;
             const gridContainer = container.querySelector(".grid-container");
@@ -341,6 +372,8 @@ export default {
         this.updateViewportHeight();
         this.initializeTradingViewMiniChartWidgets();
         
+        this.initializeTradingViewEventsWidget();
+
         // Preload clones
         this.preloadClones();
 
@@ -406,13 +439,13 @@ export default {
 }
 
 .second-column .center-large {
-    flex: 4;
-    /* 4/5 height */
+    flex: 3;
+    /* 3/5 height */
 }
 
 .second-column .center-small {
-    flex: 1;
-    /* 1/5 height */
+    flex: 2;
+    /* 2/5 height */
 }
 
 /* Third Column */
