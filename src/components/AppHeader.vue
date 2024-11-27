@@ -106,6 +106,7 @@ export default {
     justify-content: center;
     z-index: 2000;
     /* Ensure header is above overlay */
+    border-bottom: 2px solid #fff;
 }
 
 /* Header Content */
