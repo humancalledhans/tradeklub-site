@@ -7,8 +7,14 @@
                 <div class="box-left">
                     Tradeklub Television
                 </div>
-                <div class="tv-box-wrapper large">
-                    <LiveTVBox />
+                <div class="tv-box-wrapper large" style="position:relative;">
+                    <iframe 
+                        src="https://player.restream.io/?token=7a8c54acca5f43ce9f52e1971f452ab8" 
+                        allow="autoplay" 
+                        allowfullscreen 
+                        frameborder="0" 
+                        style="position:absolute;top:0;left:0;width:100%;height:100%;">
+                    </iframe>
                 </div>
             </div>
             <!-- Bottom Small Box (1/3 Height of First Column) -->
@@ -71,12 +77,12 @@
 </template>
 
 <script>
-import LiveTVBox from "./LiveTVBox.vue";
+// import LiveTVBox from "./LiveTVBox.vue";
 
 export default {
     name: "LiveTv",
     components: {
-        LiveTVBox,
+        // LiveTVBox,
     },
     data() {
         return {
