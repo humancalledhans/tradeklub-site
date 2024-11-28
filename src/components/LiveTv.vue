@@ -9,7 +9,7 @@
                 </div>
                 <div class="tv-box-wrapper large" style="position:relative;">
                     <iframe 
-                        src="https://player.restream.io/?token=7a8c54acca5f43ce9f52e1971f452ab8" 
+                        :src="liveStreamUrl"
                         allow="autoplay" 
                         allowfullscreen 
                         frameborder="0" 
@@ -43,6 +43,7 @@
                     ref="tradingViewWidget"
                     style="width: 100%; height: 100%;"
                 ></div>
+                <!-- <ChatComponent style="width: 100%; height: 100%;" /> -->
             </div>
             <!-- Bottom Small Box (1/5 Height of Second Column) -->
             <div class="box-wrapper center-small">
@@ -78,11 +79,13 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
+// import ChatComponent from "./ChatComponent.vue"; 
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
+        // ChatComponent
     },
     data() {
         return {
@@ -92,12 +95,16 @@ export default {
             viewportWidth: window.innerWidth,
             maxWidgets: 6,
             scrollInterval: null,
+            liveStreamToken: process.env.VUE_APP_LIVESTREAM_TOKEN,
             // widgetSymbols: ["FX:EURUSD", "NASDAQ:AAPL", "TSLA", "CRYPTO:BTCUSD", "GOLD", "MSTR"],
-            widgetSymbols: ["PYTH:QQQ", "CBOE:VX1!", "TVC:VIX", "CME_MINI:NQ1!", "CBOT_MINI:YM1!", "NYMEX:CL1!", "NYMEX:NG1!", "ASX24:GS1!", "CBOT:ZN1!", "CBOT:ZB1!", "CBOT:ZS1!", "CBOT:ZM1!", "CME:6J1!", "CME:6E1!", "OANDA:EURUSD", "CAPITALCOM:USDJPY", "AMEX:SPY", "COINBASE:ETHUSD", "MARKETSCOM:BITCOIN"],
+            widgetSymbols: ["PYTH:QQQ", "CBOE:VX1!", "CME_MINI:NQ1!", "CBOT_MINI:YM1!", "NYMEX:CL1!", "NYMEX:NG1!", "ASX24:GS1!", "CBOT:ZN1!", "CBOT:ZB1!", "CBOT:ZS1!", "CBOT:ZM1!", "CME:6J1!", "CME:6E1!", "OANDA:EURUSD", "CAPITALCOM:USDJPY", "AMEX:SPY", "COINBASE:ETHUSD", "MARKETSCOM:BITCOIN"],
             currentSymbolIndex: 0,
         };
     },
     computed: {
+        liveStreamUrl() {
+            return `https://player.restream.io/?token=${this.liveStreamToken}`;
+        },
         widgetContainerDimensions() {
             // Get third column width dynamically by assuming its proportional flex (1/7 in layout)
             const thirdColumnWidth = this.viewportWidth * (1 / 7); // Adjust based on `flex: 1` for `.third-column`
