@@ -43,7 +43,7 @@
                     ref="tradingViewWidget"
                     style="width: 100%; height: 100%;"
                 ></div>
-                <!-- <ChatComponent role="viewer" style="width: 100%; height: 100%;" /> -->
+                
             </div>
             <!-- Bottom Small Box (1/5 Height of Second Column) -->
             <div class="box-wrapper center-small">
@@ -79,13 +79,13 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
-// import ChatComponent from "./ChatComponent.vue"; 
+import ChatComponent from "./ChatComponent.vue"; 
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
-        // ChatComponent
+        ChatComponent
     },
     data() {
         return {

@@ -16,9 +16,8 @@
           :key="msg.id"
           :class="[
             'chat-bubble', 
-            { sender: msg.role === 'viewer' && msg.name === username, 
-              admin: msg.role === 'admin' }, 
-            { 'admin-view': role === 'admin' }
+            msg.name === username ? 'sender' : 'receiver', 
+            { admin: msg.role === 'admin' }
           ]"
         >
           <span class="message-name">{{ msg.name }}</span>
@@ -121,23 +120,17 @@ export default {
 
 <style scoped>
 .chat-wrapper {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  height: 80vh;
   display: flex;
   flex-direction: column;
-  background-color: #f8f8f8;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  justify-content: space-between; /* Ensures space is evenly distributed */
+  height: 100vh; /* Full viewport height */
 }
 
+
 .name-prompt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   padding: 20px;
 }
+
 
 .name-prompt input {
   width: 100%;
@@ -182,9 +175,17 @@ export default {
 }
 
 .sender {
-  align-self: flex-end;
+  align-self: flex-end; /* Align the sender's messages to the right */
   background-color: #DCF8C6;
   border-bottom-right-radius: 0;
+  margin-left: auto; /* Push the sender's messages to the right */
+}
+
+.receiver {
+  align-self: flex-start; /* Align other messages to the left */
+  background-color: #F1F1F1;
+  border-bottom-left-radius: 0;
+  margin-right: auto; /* Push other messages to the left */
 }
 
 .admin {
@@ -209,6 +210,7 @@ export default {
   padding: 10px;
   background-color: #fff;
   border-radius: 0 0 8px 8px;
+  flex-shrink: 0; /* Prevents the input from shrinking */
 }
 
 .input-wrapper input {
