@@ -12,6 +12,7 @@
                     rel="noopener noreferrer">
                     <span>Courses</span>
                 </a>
+                <!-- <router-link to="/admin-panel" class="tab-link"><span>Admin Login</span></router-link> -->
                 <!-- Add additional router-links for other tabs -->
             </div>
         </header>

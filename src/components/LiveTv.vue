@@ -43,7 +43,7 @@
                     ref="tradingViewWidget"
                     style="width: 100%; height: 100%;"
                 ></div>
-                <!-- <ChatComponent style="width: 100%; height: 100%;" /> -->
+                <!-- <ChatComponent role="viewer" style="width: 100%; height: 100%;" /> -->
             </div>
             <!-- Bottom Small Box (1/5 Height of Second Column) -->
             <div class="box-wrapper center-small">
@@ -364,15 +364,20 @@ export default {
 
                 // Configuration for the advanced chart
                 script.text = JSON.stringify({
-                    autosize: true,
-                    symbol: "NASDAQ:AAPL",
-                    interval: "D",
-                    timezone: "Etc/UTC",
-                    theme: "dark",
-                    style: "1",
-                    locale: "en",
-                    allow_symbol_change: true,
-                    calendar: false,
+                    "autosize": true,
+                    "symbol": "NASDAQ:AAPL",
+                    "interval": "1",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "allow_symbol_change": true,
+                    "calendar": false,
+                    "studies": [
+                        "STD;VWAP"
+                    ],
+                    "hide_volume": true,
+                    "support_host": "https://www.tradingview.com"
                 });
 
                 container.querySelector("#tradingview-widget").appendChild(script);
