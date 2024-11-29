@@ -83,13 +83,13 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
-import ChatComponent from "./ChatComponent.vue"; 
+// import ChatComponent from "./ChatComponent.vue"; 
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
-        ChatComponent
+        // ChatComponent
     },
     data() {
         return {
