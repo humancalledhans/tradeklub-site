@@ -10,7 +10,7 @@
                 <div class="tv-box-wrapper large" style="position:relative;">
                     <iframe 
                         :src="liveStreamUrl"
-                        allow="autoplay" 
+                        allow="autoplay; fullscreen; microphone"
                         allowfullscreen 
                         frameborder="0" 
                         style="position:absolute;top:0;left:0;width:100%;height:100%;">
@@ -22,14 +22,19 @@
                 <div class="box-left">
                     Top News
                 </div>
-                <div class="box-wrapper medium rss-widget-wrapper">
-                    <iframe 
-                        ref="rssWidgetIframe" 
-                        src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
-                        frameborder="0"
-                        scrolling="no"
-                        style="width: 100%; height: 100%; box-sizing: border-box;">
-                    </iframe>
+                <div class="split-container">
+                    <div class="rss-widget-wrapper">
+                        <iframe 
+                            ref="rssWidgetIframe" 
+                            src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
+                            frameborder="0"
+                            scrolling="no"
+                            style="width: 100%; height: 100%; box-sizing: border-box;">
+                        </iframe>
+                    </div>
+                    <!-- <div class="right-half">
+                        <ChatComponent role="viewer"/>
+                    </div> -->
                 </div>
             </div>
         </div>
@@ -43,7 +48,6 @@
                     ref="tradingViewWidget"
                     style="width: 100%; height: 100%;"
                 ></div>
-                <!-- <ChatComponent role="viewer" style="width: 100%; height: 100%;" /> -->
             </div>
             <!-- Bottom Small Box (1/5 Height of Second Column) -->
             <div class="box-wrapper center-small">
@@ -79,13 +83,13 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
-// import ChatComponent from "./ChatComponent.vue"; 
+import ChatComponent from "./ChatComponent.vue"; 
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
-        // ChatComponent
+        ChatComponent
     },
     data() {
         return {
@@ -385,7 +389,7 @@ export default {
         },
     },
     mounted() {
-        this.disableScrolling();
+        // this.disableScrolling();
         this.calculateHeights();
         this.updateViewportHeight();
         this.initializeTradingViewMiniChartWidgets();
@@ -416,10 +420,8 @@ export default {
 
 .live-tv-layout {
     display: flex;
-    /* Arrange columns side by side */
     width: 100%;
     height: var(--available-height);
-    /* Use available height */
     gap: 10px;
     box-sizing: border-box;
     padding: 10px;
@@ -437,7 +439,7 @@ export default {
 /* First Column */
 .first-column {
     flex: 4;
-    /* 4/7 width */
+    height: 100%; /* Ensure it fills .live-tv-layout */
 }
 
 .first-column .large {
@@ -595,5 +597,54 @@ export default {
     width: 100%; /* Ensure iframe scales to container */
     height: 100%;
     border: none; /* Remove iframe border */
+}
+
+/* New container for splitting the content */
+.split-container {
+    display: flex;
+    width: 100%; /* Take up all available width */
+    height: 100%; /* Fill the height of the row */
+    flex: 1; /* Take up the remaining space in the row */
+}
+
+/* Left half for RSS iframe */
+.left-half {
+    width: 50%; /* Half of the container */
+    height: 100%;
+    overflow: hidden; /* Prevent content from overflowing outside */
+}
+/* Right half for ChatComponent */
+.right-half {
+    width: 50%; /* Half of the container */
+    height: 100%; /* Ensure it fills its parent container */
+    overflow: hidden; /* Prevent content from extending beyond */
+    display: flex; /* Use flex to ensure child fills this space */
+    flex-direction: column; /* Stack children vertically */
+}
+
+/* Adjusting the iframe */
+.rss-widget-wrapper iframe {
+    width: 100%; /* Ensure iframe scales to container */
+    height: 100%;
+    border: none; /* Remove iframe border */
+}
+
+/* Ensure ChatComponent fills its container but doesn't overflow */
+.right-half > ChatComponent {
+    width: 100%;
+    height: 100%; /* Fill .right-half */
+    overflow-y: auto; /* Allow scrolling when content overflows */
+    display: block;
+    box-sizing: border-box;
+}
+
+/* Ensure ChatComponent's internal scrollable area */
+.right-half > ChatComponent > .chat-wrapper {
+    height: 100%; /* Fill the ChatComponent */
+}
+
+.right-half > ChatComponent > .chat-wrapper > .chat-window {
+    height: 100%; /* Ensure the chat window takes up all available space */
+    overflow-y: auto; /* Internal scrolling for messages */
 }
 </style>

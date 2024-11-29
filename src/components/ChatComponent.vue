@@ -84,6 +84,7 @@ export default {
       onSnapshot(messagesQuery, (snapshot) => {
         this.messages = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
         this.scrollToBottom();
+        this.updateComponentHeight();
       });
     },
     sendMessage() {
@@ -97,6 +98,7 @@ export default {
           .then(() => {
             this.newMessage = "";
             this.scrollToBottom();
+            this.updateComponentHeight();
           })
           .catch((error) => {
             console.error("Error sending message:", error);
@@ -107,11 +109,41 @@ export default {
       deleteDoc(doc(db, "chatMessages", messageId))
         .then(() => {
           console.log("Message deleted successfully");
+          this.updateComponentHeight();
         })
         .catch((error) => {
           console.error("Error deleting message:", error);
         });
     },
+    updateComponentHeight() {
+      this.$nextTick(() => {
+        // This ensures that DOM updates are complete before we measure or adjust anything
+        const chatWindow = this.$refs.chatWindow;
+        if (chatWindow) {
+          // You might want to adjust the height based on content or parent container
+          // Here's a simple example where we might adjust the height if it exceeds some limit
+          const parentHeight = chatWindow.parentElement.offsetHeight;
+          const contentHeight = chatWindow.scrollHeight;
+
+          // If content is larger than viewable area, ensure scrolling works
+          if (contentHeight > parentHeight) {
+            chatWindow.style.height = `${parentHeight}px`; // Set to parent's height to enforce scroll
+          } else {
+            // If content fits within parent, match height to content
+            chatWindow.style.height = `${contentHeight}px`;
+          }
+
+          // Optionally, you might want to adjust `.chat-wrapper`'s height
+          const chatWrapper = this.$el.querySelector('.chat-wrapper');
+          if (chatWrapper) {
+            chatWrapper.style.height = 'auto'; // Let it grow with content if necessary
+          }
+
+          // Scroll to bottom if new content was added
+          this.scrollToBottom();
+        }
+      });
+    }
   },
   mounted() {
     this.fetchMessages();
@@ -122,9 +154,8 @@ export default {
 <style scoped>
 .chat-wrapper {
   width: 100%;
-  max-width: 600px;
   margin: 0 auto;
-  height: 80vh;
+  height: 100%; /* Change from fixed height to 100% of parent */
   display: flex;
   flex-direction: column;
   background-color: #f8f8f8;
@@ -175,11 +206,12 @@ export default {
 .chat-bubble {
   padding: 10px 15px;
   margin: 10px 0;
-  max-width: 80%;
-  display: inline-block;
+  width: 100%; /* Change from max-width to width */
+  display: block; /* Change from inline-block to block */
   border-radius: 15px;
   position: relative;
 }
+
 
 .sender {
   align-self: flex-end;
