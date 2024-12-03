@@ -48,7 +48,7 @@
 
 <script>
 import { db } from "@/firebase";
-import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, getDocs, where } from "firebase/firestore";
 
 export default {
   props: {
@@ -116,11 +116,41 @@ export default {
         }
       });
     },
-    setUsername() {
-      if (this.tempName.trim()) {
-        this.username = this.tempName.trim();
-        sessionStorage.setItem('username', this.username); // Save username to sessionStorage
-        this.fetchMessages();
+    async setUsername() {
+      const newName = this.tempName.trim();
+
+      // Check if the name is empty
+      if (!newName) {
+        alert("Username cannot be empty.");
+        return;
+      }
+
+      // Check if the name is "admin"
+      if (newName.toLowerCase() === "admin") {
+        alert('"Admin" is not a valid username.');
+        return;
+      }
+
+      try {
+        // Query Firestore to check for duplicate names
+        const messagesQuery = query(
+          collection(db, "chatMessages"),
+          where("name", "==", newName)
+        );
+        const existingNames = await getDocs(messagesQuery);
+
+        if (!existingNames.empty) {
+          alert(`The name "${newName}" is already taken. Please choose a different name.`);
+          return;
+        }
+
+        // Set the username and store it in sessionStorage
+        this.username = newName;
+        sessionStorage.setItem("username", newName);
+        this.fetchMessages(); // Fetch messages after setting the username
+      } catch (error) {
+        console.error("Error checking for duplicate usernames:", error);
+        alert("An error occurred. Please try again.");
       }
     },
     fetchMessages() {

@@ -40,89 +40,89 @@ import { db } from "@/firebase";
 import { collection, query, orderBy, onSnapshot, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
 
 export default {
-    data() {
-        return {
-        username: '',
-        password: '',
-        isAdmin: false,
-        messages: [],
-        newMessage: '',
-
-        };
+  data() {
+    return {
+      username: "",
+      password: "",
+      isAdmin: false, // Tracks if the user is logged in as admin
+      messages: [],
+      newMessage: "",
+    };
+  },
+  methods: {
+    login() {
+      if (
+        this.username === process.env.VUE_APP_ADMIN_USERNAME &&
+        this.password === process.env.VUE_APP_ADMIN_PASSWORD
+      ) {
+        this.isAdmin = true;
+        sessionStorage.setItem("isAdmin", "true"); // Store admin status in session storage
+        this.fetchMessages(); // Fetch messages once logged in as admin
+      } else {
+        alert("Invalid credentials");
+      }
     },
-    methods: {
-        login() {
-        if (this.username === process.env.VUE_APP_ADMIN_USERNAME && 
-                this.password === process.env.VUE_APP_ADMIN_PASSWORD) {
-                this.isAdmin = true;
-                this.fetchMessages(); // Fetch messages once logged in as admin
-            } else {
-                alert('Invalid credentials');
-            }
-        },
-        fetchMessages() {
-            const messagesQuery = query(
-                collection(db, "chatMessages"),
-                orderBy("timestamp", "asc")
-            );
-            onSnapshot(messagesQuery, (snapshot) => {
-                this.messages = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                this.scrollToBottom();
-            });
-        },
-        scrollToBottom() {
-        this.$nextTick(() => {
-            const chatWindow = this.$refs.chatWindow;
-            if (chatWindow) {
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-            }
-        });
-        },
-        sendAdminReply() {
-            if (this.newMessage.trim()) {
-                addDoc(collection(db, "chatMessages"), {
-                    name: "Admin", // or any identifier for admin
-                    text: this.newMessage.trim(),
-                    timestamp: Date.now(),
-                    role: 'admin'
-                })
-                .then(() => {
-                    this.newMessage = ""; // Clear the input after sending
-                    this.scrollToBottom(); // Scroll to show the new message
-                })
-                .catch((error) => {
-                    console.error("Error sending admin reply:", error);
-                    // Consider showing an error message to the user here
-                });
-            }
-        },
-        async resetChat() {
-            try {
-                const messagesCollection = collection(db, "chatMessages");
-                const messagesSnapshot = await getDocs(messagesCollection);
-
-                // Filter messages where role is admin (optional)
-                const deletePromises = messagesSnapshot.docs
-                    // .filter((docSnapshot) => docSnapshot.data().role === "admin") // Ensure only admin messages
-                    .map((docSnapshot) =>
-                        deleteDoc(doc(db, "chatMessages", docSnapshot.id))
-                    );
-
-                await Promise.all(deletePromises); // Ensure all deletions complete
-                alert("Chat has been reset.");
-                this.messages = []; // Clear local messages array
-            } catch (error) {
-                console.error("Error resetting chat:", error);
-                alert("Failed to reset chat. Please try again.");
-            }
+    fetchMessages() {
+      const messagesQuery = query(
+        collection(db, "chatMessages"),
+        orderBy("timestamp", "asc")
+      );
+      onSnapshot(messagesQuery, (snapshot) => {
+        this.messages = snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
+        this.scrollToBottom();
+      });
+    },
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const chatWindow = this.$refs.chatWindow;
+        if (chatWindow) {
+          chatWindow.scrollTop = chatWindow.scrollHeight;
         }
-
+      });
     },
-    mounted() {
-        // You might want to fetch messages here if you want them to load for all users, 
-        // but since we're only showing them to admins, we call fetchMessages in login method
+    sendAdminReply() {
+      if (this.newMessage.trim()) {
+        addDoc(collection(db, "chatMessages"), {
+          name: "Admin", // Identifier for admin
+          text: this.newMessage.trim(),
+          timestamp: Date.now(),
+          role: "admin",
+        })
+          .then(() => {
+            this.newMessage = ""; // Clear the input after sending
+            this.scrollToBottom(); // Scroll to show the new message
+          })
+          .catch((error) => {
+            console.error("Error sending admin reply:", error);
+          });
+      }
+    },
+    async resetChat() {
+      try {
+        const messagesCollection = collection(db, "chatMessages");
+        const messagesSnapshot = await getDocs(messagesCollection);
+
+        const deletePromises = messagesSnapshot.docs.map((docSnapshot) =>
+          deleteDoc(doc(db, "chatMessages", docSnapshot.id))
+        );
+
+        await Promise.all(deletePromises); // Ensure all deletions complete
+        alert("Chat has been reset.");
+        this.messages = []; // Clear local messages array
+      } catch (error) {
+        console.error("Error resetting chat:", error);
+        alert("Failed to reset chat. Please try again.");
+      }
+    },
+  },
+  mounted() {
+    const adminStatus = sessionStorage.getItem("isAdmin");
+    if (adminStatus === "true") {
+      this.isAdmin = true; // Restore admin status
+      this.fetchMessages(); // Fetch messages if logged in as admin
     }
-}
+  },
+};
 </script>
 
   <style scoped>
