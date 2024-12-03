@@ -19,22 +19,35 @@
             </div>
             <!-- Bottom Small Box (1/3 Height of First Column) -->
             <div class="row">
-                <div class="box-left">
-                    Top News
+                <div v-if="isMobile" ref="mobileContainer" :class="{ 'scoped-mobile-container': isMobile }">
+                    <TabbedComponent 
+                    :parentWidth="parentWidthMobile" 
+                    :parentHeight="parentHeightMobile" 
+                    />
                 </div>
-                <div class="split-container">
+                <div v-else class="desktop-layout">
+                    <div class="box-left">
+                    Top News
+                    </div>
+                    <div class="split-container">
                     <div class="rss-widget-wrapper">
                         <iframe 
-                            ref="rssWidgetIframe" 
-                            src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
-                            frameborder="0"
-                            scrolling="no"
-                            style="width: 100%; height: 100%; box-sizing: border-box;">
+                        ref="rssWidgetIframe" 
+                        src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
+                        frameborder="0"
+                        scrolling="no"
+                        style="width: 100%; height: 100%; box-sizing: border-box;">
                         </iframe>
                     </div>
-                    <!-- <div class="right-half">
-                        <ChatComponent role="viewer"/>
-                    </div> -->
+                    <div class="right-half" ref="chatContainer">
+                        <ChatComponent 
+                        :width="parentWidth" 
+                        :height="parentHeight" 
+                        role="viewer" 
+                        ref="chatComponent" 
+                        />
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -83,13 +96,15 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
-// import ChatComponent from "./ChatComponent.vue"; 
+import ChatComponent from "./ChatComponent.vue"; 
+import TabbedComponent from "./TabbedComponent.vue";
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
-        // ChatComponent
+        ChatComponent,
+        TabbedComponent
     },
     data() {
         return {
@@ -103,6 +118,10 @@ export default {
             // widgetSymbols: ["FX:EURUSD", "NASDAQ:AAPL", "TSLA", "CRYPTO:BTCUSD", "GOLD", "MSTR"],
             widgetSymbols: ["PYTH:QQQ", "CBOE:VX1!", "CME_MINI:NQ1!", "CBOT_MINI:YM1!", "NYMEX:CL1!", "NYMEX:NG1!", "ASX24:GS1!", "CBOT:ZN1!", "CBOT:ZB1!", "CBOT:ZS1!", "CBOT:ZM1!", "CME:6J1!", "CME:6E1!", "OANDA:EURUSD", "CAPITALCOM:USDJPY", "AMEX:SPY", "COINBASE:ETHUSD", "MARKETSCOM:BITCOIN"],
             currentSymbolIndex: 0,
+            parentWidth: null,
+            parentHeight: null,
+            parentWidthMobile: 0,
+            parentWidthHeight: 0,
         };
     },
     computed: {
@@ -129,6 +148,21 @@ export default {
         },
     },
     methods: {
+        isMobile() {
+            return window.innerWidth <= 768; // You can adjust the breakpoint as needed
+        },
+        calculateMobileDimensions() {
+            const parentElement = this.$refs.mobileContainer; // Reference to the parent
+            if (parentElement) {
+                this.parentWidthMobile = parentElement.offsetWidth; // Dynamically calculate width
+                this.parentHeightMobile = parentElement.offsetHeight; // Dynamically calculate height
+            }
+        },
+        handleResize() {
+            if (this.isMobile()) {
+                this.calculateMobileDimensions();
+            }
+        },
         initializeTradingViewEventsWidget() {
             const container = this.$refs.tradingViewEventsWidget;
 
@@ -271,8 +305,9 @@ export default {
         },
         initializeRssWidget() {
             const iframe = this.$refs.rssWidgetIframe;
+            const chatComponent = this.$refs.chatComponent; 
 
-            if (iframe) {
+            if (iframe && chatComponent) {
                 // Get parent dimensions
                 const parentWidth = iframe.parentElement.offsetWidth;
                 const parentHeight = iframe.parentElement.offsetHeight;
@@ -281,9 +316,19 @@ export default {
                 iframe.style.width = `${parentWidth}px`;
                 iframe.style.height = `${parentHeight}px`;
 
+                this.chatComponentWidth = parentWidth;
+                this.chatComponentHeight = parentHeight;
+
                 // Ensure the iframe scales responsively
                 iframe.setAttribute("width", "100%");
                 iframe.setAttribute("height", "100%");
+            }
+        },
+        updateChatDimensions() {
+            const chatContainer = this.$refs.chatContainer;
+            if (chatContainer) {
+                this.parentWidth = chatContainer.offsetWidth;
+                this.parentHeight = chatContainer.offsetHeight;
             }
         },
         updateDimensions() {
@@ -389,7 +434,7 @@ export default {
         },
     },
     mounted() {
-        // this.disableScrolling();
+        // this.disableScroll bing();
         this.calculateHeights();
         this.updateViewportHeight();
         this.initializeTradingViewMiniChartWidgets();
@@ -401,13 +446,25 @@ export default {
 
         this.startAutoScroll();
         window.addEventListener("resize", this.calculateHeights);
-        this.initializeRssWidget();
+        this.$nextTick(() => {
+            this.initializeRssWidget();
+        });
         this.initializeTradingViewWidget();
+
+        this.updateChatDimensions();
+
+        if (this.isMobile()) {
+            this.calculateMobileDimensions();
+        }
+
+        window.addEventListener("resize", this.updateChatDimensions);
     },
     beforeUnmount() {
         this.enableScrolling();
         this.stopAutoScroll()
         window.removeEventListener("resize", this.calculateHeights);
+        window.removeEventListener("resize", this.updateChatDimensions);
+        window.removeEventListener("resize", this.handleResize);
     },
 };
 </script>
@@ -525,7 +582,17 @@ export default {
 .row {
     display: flex;
     width: 100%;
-    height: 100%;
+    height: 100%; /* Ensure this is set to a defined height */
+    flex-direction: column; /* Layout children in a column */
+    box-sizing: border-box;
+}
+
+.desktop-layout {
+    display: flex;
+    flex-direction: row; /* Align horizontally */
+    align-items: stretch; /* Make children stretch to fill parent height */
+    height: 100%; /* Match height of .row */
+    width: 100%; /* Ensure full width */
 }
 
 .row-tv {
@@ -599,27 +666,25 @@ export default {
     border: none; /* Remove iframe border */
 }
 
-/* New container for splitting the content */
-.split-container {
-    display: flex;
-    width: 100%; /* Take up all available width */
-    height: 100%; /* Fill the height of the row */
-    flex: 1; /* Take up the remaining space in the row */
-}
-
 /* Left half for RSS iframe */
 .left-half {
     width: 50%; /* Half of the container */
     height: 100%;
     overflow: hidden; /* Prevent content from overflowing outside */
 }
-/* Right half for ChatComponent */
+.rss-widget-wrapper, .right-half {
+    width: 50%; /* Adjust based on your layout */
+    height: 100%; /* Both should take up full height of split-container */
+}
+
 .right-half {
-    width: 50%; /* Half of the container */
-    height: 100%; /* Ensure it fills its parent container */
-    overflow: hidden; /* Prevent content from extending beyond */
-    display: flex; /* Use flex to ensure child fills this space */
-    flex-direction: column; /* Stack children vertically */
+    overflow-y: auto; /* For ChatComponent, to manage overflow */
+}
+
+.split-container {
+    width: 100%;
+    height: 100%; /* Make sure this fills its parent */
+    display: flex;
 }
 
 /* Adjusting the iframe */
@@ -646,5 +711,37 @@ export default {
 .right-half > ChatComponent > .chat-wrapper > .chat-window {
     height: 100%; /* Ensure the chat window takes up all available space */
     overflow-y: auto; /* Internal scrolling for messages */
+}
+
+.chat-wrapper {
+  height: 100%; /* Ensure it matches parent's height */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.chat-window {
+  flex-grow: 1; /* Use remaining space within chat-wrapper */
+  overflow-y: auto; /* Scroll for overflowing content */
+}
+
+.input-wrapper {
+  flex-shrink: 0; /* Prevent input area from growing/shrinking */
+}
+
+.chat-bubble {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 90%; /* Limit to a percentage of the parent */
+}
+
+
+#mobile-container {
+  flex: 1; /* Fills the remaining height of the row */
+}
+
+.scoped-mobile-container {
+    height: 100%;
+    width: 100%;
 }
 </style>

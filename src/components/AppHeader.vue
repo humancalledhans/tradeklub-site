@@ -34,6 +34,7 @@
                         rel="noopener noreferrer">
                         <span>Courses</span>
                     </a>
+                    <router-link to="/admin-panel" class="tab-link" @click="handleLinkClick"><span>Admin Login</span></router-link>
                     <!-- <router-link to="/economics" class="tab-link" @click="handleLinkClick">
                         <span>Economics</span>
                     </router-link>

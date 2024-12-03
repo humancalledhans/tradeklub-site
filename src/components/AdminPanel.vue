@@ -11,6 +11,7 @@
       <div v-else class="admin-chat-panel">
         <h2>Admin Chat Panel</h2>
         <p>Welcome, Admin!</p>
+        <button @click="resetChat" class="reset-chat-button">Reset Chat</button> <!-- Reset Chat Button -->
         <div class="chat-window" ref="chatWindow">
         <div 
           v-for="message in messages" 
@@ -36,7 +37,7 @@
   
 <script>
 import { db } from "@/firebase";
-import { collection, query, orderBy, onSnapshot, addDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
 
 export default {
     data() {
@@ -44,7 +45,9 @@ export default {
         username: '',
         password: '',
         isAdmin: false,
-        messages: []
+        messages: [],
+        newMessage: '',
+
         };
     },
     methods: {
@@ -78,21 +81,42 @@ export default {
         sendAdminReply() {
             if (this.newMessage.trim()) {
                 addDoc(collection(db, "chatMessages"), {
-                name: "Admin", // or any identifier for admin
-                text: this.newMessage.trim(),
-                timestamp: Date.now(),
-                role: 'admin'
+                    name: "Admin", // or any identifier for admin
+                    text: this.newMessage.trim(),
+                    timestamp: Date.now(),
+                    role: 'admin'
                 })
                 .then(() => {
-                this.newMessage = ""; // Clear the input after sending
-                this.scrollToBottom(); // Scroll to show the new message
+                    this.newMessage = ""; // Clear the input after sending
+                    this.scrollToBottom(); // Scroll to show the new message
                 })
                 .catch((error) => {
-                console.error("Error sending admin reply:", error);
-                // Consider showing an error message to the user here
+                    console.error("Error sending admin reply:", error);
+                    // Consider showing an error message to the user here
                 });
             }
+        },
+        async resetChat() {
+            try {
+                const messagesCollection = collection(db, "chatMessages");
+                const messagesSnapshot = await getDocs(messagesCollection);
+
+                // Filter messages where role is admin (optional)
+                const deletePromises = messagesSnapshot.docs
+                    // .filter((docSnapshot) => docSnapshot.data().role === "admin") // Ensure only admin messages
+                    .map((docSnapshot) =>
+                        deleteDoc(doc(db, "chatMessages", docSnapshot.id))
+                    );
+
+                await Promise.all(deletePromises); // Ensure all deletions complete
+                alert("Chat has been reset.");
+                this.messages = []; // Clear local messages array
+            } catch (error) {
+                console.error("Error resetting chat:", error);
+                alert("Failed to reset chat. Please try again.");
+            }
         }
+
     },
     mounted() {
         // You might want to fetch messages here if you want them to load for all users, 
@@ -106,7 +130,6 @@ export default {
     width: 100%;
     height: 100%;
     margin: 0 auto;
-    padding: 20px;
   }
   
   .admin-login {
@@ -176,7 +199,7 @@ export default {
 }
 
 .input-wrapper {
-    
+
   margin-top: 10px;
   display: flex;
 }
@@ -190,7 +213,7 @@ export default {
 
 .input-wrapper button {
   padding: 10px;
-  background-color: #4CAF50;
+  background-color: #162D5D;
   color: white;
   border: none;
   border-radius: 0 4px 4px 0;
@@ -199,6 +222,21 @@ export default {
 }
 
 .input-wrapper button:hover {
-  background-color: #45a049;
+  background-color: #315297;
+}
+
+.reset-chat-button {
+  padding: 10px 15px;
+  background-color: #FF5722; /* A red color for warning actions */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 15px;
+  transition: background-color 0.3s;
+}
+
+.reset-chat-button:hover {
+  background-color: #E64A19; /* Slightly darker red on hover */
 }
   </style>

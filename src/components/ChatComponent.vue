@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-wrapper">
+  <div class="chat-wrapper" :style="{ width: `${width}px`, height: `${parentHeight}px` }">
     <div v-if="!username" class="name-prompt">
       <input
         v-model="tempName"
@@ -10,7 +10,11 @@
     </div>
 
     <div v-else>
-      <div class="chat-window" ref="chatWindow">
+      <div
+        class="chat-window"
+        :style="{ maxHeight: `${availableChatHeight - 20}px`, height: `${availableChatHeight}px`, overflowY: 'auto' }"
+        ref="chatWindow"
+      >
         <div
           v-for="msg in messages"
           :key="msg.id"
@@ -32,10 +36,11 @@
       <div class="input-wrapper">
         <input
           v-model="newMessage"
-          :placeholder="role === 'admin' ? 'Type your admin message here...' : 'Type your message here...'"
+          :placeholder="computedPlaceholder"
           @keyup.enter="sendMessage"
+          :disabled="sendingMessage"
         />
-        <button @click="sendMessage">Send</button>
+        <button @click="sendMessage" :disabled="sendingMessage">Send</button>
       </div>
     </div>
   </div>
@@ -52,6 +57,14 @@ export default {
       required: true,
       validator: value => ['viewer', 'admin'].includes(value)
     },
+    width: {
+      type: Number,
+      required: true
+    },
+    // height: {
+    //   type: Number,
+    //   required: true
+    // }
   },
   data() {
     return {
@@ -59,20 +72,54 @@ export default {
       tempName: "",
       newMessage: "",
       messages: [],
+      parentHeight: 0,
+      inputBoxHeight: 70, // Default height of the input-wrapper
+      sendingMessage: false,
     };
   },
+  computed: {
+    computedPlaceholder() {
+      const username = sessionStorage.getItem('username') || 'Guest';
+      if (this.role === 'admin') {
+        return 'Type your admin message here...';
+      }
+      return `You are chatting as ${username}`;
+    },
+    chatWrapperStyle() {
+      return {
+        width: `${this.width}px`,
+        height: `${this.height}px`,
+      };
+    },
+    availableChatHeight() {
+      const calculatedHeight = this.parentHeight - this.inputBoxHeight;
+      return Number.isFinite(calculatedHeight) ? calculatedHeight : 0;
+    },
+  },
   methods: {
+    updateParentHeight() {
+      this.$nextTick(() => {
+        const parent = this.$el.parentNode; // Get the parent node
+        if (parent) {
+          this.parentHeight = parent.offsetHeight; // Calculate height of the parent
+          console.log("Parent height updated:", this.parentHeight);
+        }
+      });
+    },
     scrollToBottom() {
       this.$nextTick(() => {
         const chatWindow = this.$refs.chatWindow;
+        const inputWrapper = this.$el.querySelector(".input-wrapper");
+        const inputHeight = inputWrapper ? inputWrapper.offsetHeight : 70; // Default to 60px if input-wrapper height isn't found
         if (chatWindow) {
-          chatWindow.scrollTop = chatWindow.scrollHeight;
+          chatWindow.scrollTop = chatWindow.scrollHeight - chatWindow.clientHeight + inputHeight;
         }
       });
     },
     setUsername() {
       if (this.tempName.trim()) {
         this.username = this.tempName.trim();
+        sessionStorage.setItem('username', this.username); // Save username to sessionStorage
         this.fetchMessages();
       }
     },
@@ -82,13 +129,16 @@ export default {
         orderBy("timestamp", "asc")
       );
       onSnapshot(messagesQuery, (snapshot) => {
-        this.messages = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        this.scrollToBottom();
-        this.updateComponentHeight();
+        this.messages = snapshot.docs.map((doc) => ({
+          ...doc.data(),
+          id: doc.id,
+        }));
+        this.scrollToBottom(); // Always scroll to the bottom on new message fetch
       });
     },
     sendMessage() {
       if (this.newMessage.trim()) {
+        this.sendingMessage = true;
         addDoc(collection(db, "chatMessages"), {
           name: this.username,
           text: this.newMessage.trim(),
@@ -97,13 +147,28 @@ export default {
         })
           .then(() => {
             this.newMessage = "";
-            this.scrollToBottom();
-            this.updateComponentHeight();
+            this.scrollToBottom(); // Scroll after sending a message
           })
           .catch((error) => {
             console.error("Error sending message:", error);
+          })
+          .finally(() => {
+            this.sendingMessage = false; // Re-enable input
           });
       }
+    },
+    resetSession() {
+      sessionStorage.removeItem('username'); // Clear the username from sessionStorage
+      this.username = null; // Reset local username
+      alert("Session expired. Please re-enter your name.");
+    },
+    updateInputBoxHeight() {
+      this.$nextTick(() => {
+        const inputWrapper = this.$el.querySelector(".input-wrapper");
+        if (inputWrapper) {
+          this.inputBoxHeight = inputWrapper.offsetHeight || 70; // Fallback to 60 if not found
+        }
+      });
     },
     deleteMessage(messageId) {
       deleteDoc(doc(db, "chatMessages", messageId))
@@ -117,51 +182,44 @@ export default {
     },
     updateComponentHeight() {
       this.$nextTick(() => {
-        // This ensures that DOM updates are complete before we measure or adjust anything
         const chatWindow = this.$refs.chatWindow;
         if (chatWindow) {
-          // You might want to adjust the height based on content or parent container
-          // Here's a simple example where we might adjust the height if it exceeds some limit
-          const parentHeight = chatWindow.parentElement.offsetHeight;
-          const contentHeight = chatWindow.scrollHeight;
-
-          // If content is larger than viewable area, ensure scrolling works
-          if (contentHeight > parentHeight) {
-            chatWindow.style.height = `${parentHeight}px`; // Set to parent's height to enforce scroll
-          } else {
-            // If content fits within parent, match height to content
-            chatWindow.style.height = `${contentHeight}px`;
-          }
-
-          // Optionally, you might want to adjust `.chat-wrapper`'s height
-          const chatWrapper = this.$el.querySelector('.chat-wrapper');
-          if (chatWrapper) {
-            chatWrapper.style.height = 'auto'; // Let it grow with content if necessary
-          }
-
-          // Scroll to bottom if new content was added
-          this.scrollToBottom();
+          chatWindow.style.maxHeight = `${this.height}px`;
         }
       });
     }
   },
   mounted() {
-    this.fetchMessages();
-  }
+    this.updateParentHeight();
+    this.updateInputBoxHeight(); // Calculate input-wrapper height initially
+    this.scrollToBottom(); // Ensure initial scroll position is at the bottom
+    window.addEventListener("resize", this.updateInputBoxHeight); // Recalculate on window resize
+    // Retrieve username from sessionStorage on mount
+    const savedUsername = sessionStorage.getItem('username');
+    if (savedUsername) {
+      this.username = savedUsername;
+      this.fetchMessages(); // Fetch messages if a username is already set
+    }
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.updateInputBoxHeight);
+  },
 };
 </script>
 
 <style scoped>
 .chat-wrapper {
-  width: 100%;
-  margin: 0 auto;
-  height: 100%; /* Change from fixed height to 100% of parent */
   display: flex;
   flex-direction: column;
   background-color: #f8f8f8;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 100%; /* Allow the wrapper to scale with its container */
+  margin: 0 auto; /* Center the chat component horizontally */
+  height: 100%; /* Set height to ensure layout is contained */
+  overflow: hidden; /* Prevent horizontal overflow */
 }
+
 
 .name-prompt {
   display: flex;
@@ -181,7 +239,7 @@ export default {
 
 .name-prompt button {
   padding: 10px 15px;
-  background-color: #4CAF50;
+  background-color: #162D5D;
   color: white;
   border: none;
   border-radius: 4px;
@@ -191,25 +249,29 @@ export default {
 }
 
 .name-prompt button:hover {
-  background-color: #45a049;
+  background-color: #315297;
 }
 
 .chat-window {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 20px;
+  flex-grow: 1; /* Allow chat-window to take up available space */
+  overflow-y: auto; /* Enable scrolling for chat messages */
+  padding: 20px 10px 10px 10px; /* Prevent extra padding that may affect height */
   background-color: #fff;
   border-radius: 8px 8px 0 0;
   border-bottom: 1px solid #ddd;
+  word-wrap: break-word; /* Ensure long text wraps */
+  height: 100%; /* Enforce consistent height */
 }
 
 .chat-bubble {
   padding: 10px 15px;
   margin: 10px 0;
-  width: 100%; /* Change from max-width to width */
-  display: block; /* Change from inline-block to block */
+  max-width: 100%; /* Prevent chat bubbles from exceeding container width */
+  display: block;
   border-radius: 15px;
   position: relative;
+  word-wrap: break-word; /* Wrap text to avoid horizontal overflow */
+  overflow-wrap: break-word;
 }
 
 
@@ -241,7 +303,13 @@ export default {
   padding: 10px;
   background-color: #fff;
   border-radius: 0 0 8px 8px;
+  flex-shrink: 0; /* Prevent shrinking */
+  position: sticky; /* Keep it fixed within the chat-wrapper */
+  bottom: 0; /* Align to the bottom */
+  max-width: 100%; /* Ensure input-wrapper respects the max width */
+  height: 40px; /* Consistent height */
 }
+
 
 .input-wrapper input {
   flex-grow: 1;
@@ -249,11 +317,12 @@ export default {
   border: 1px solid #ddd;
   border-radius: 4px 0 0 4px;
   font-size: 16px;
+  max-width: calc(100% - 100px); /* Leave space for the button */
 }
 
 .input-wrapper button {
   padding: 10px 15px;
-  background-color: #4CAF50;
+  background-color: #162D5D;
   color: white;
   border: none;
   border-radius: 0 4px 4px 0;
@@ -263,7 +332,7 @@ export default {
 }
 
 .input-wrapper button:hover {
-  background-color: #45a049;
+  background-color: #315297;
 }
 
 /* Scrollbar styling for better aesthetics on chat window */
