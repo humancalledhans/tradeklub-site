@@ -47,7 +47,7 @@
 </template>
 
 <script>
-import { db } from "@/firebase";
+import { db } from "@/utils/firebase-config";
 import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, getDocs, where } from "firebase/firestore";
 
 export default {

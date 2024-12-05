@@ -11,6 +11,10 @@
       <div v-else class="admin-chat-panel">
         <h2>Admin Chat Panel</h2>
         <p>Welcome, Admin!</p>
+        <!-- New Subscribe Button -->
+        <button @click="subscribeToNotifications" class="subscribe-button">
+          (TEST) Subscribe to Notifications
+        </button>
         <button @click="resetChat" class="reset-chat-button">Reset Chat</button> <!-- Reset Chat Button -->
         <div class="chat-window" ref="chatWindow">
         <div 
@@ -36,8 +40,9 @@
 </template>
   
 <script>
-import { db } from "@/firebase";
+import { db } from "@/utils/firebase-config";
 import { collection, query, orderBy, onSnapshot, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { requestNotificationPermission } from "@/utils/firebase-messaging"; 
 
 export default {
   data() {
@@ -112,6 +117,17 @@ export default {
       } catch (error) {
         console.error("Error resetting chat:", error);
         alert("Failed to reset chat. Please try again.");
+      }
+    },
+    async subscribeToNotifications() {
+
+      console.log("subscribe to notification button clicked");
+      try {
+        await requestNotificationPermission(); // Calls the utility function to handle subscription
+        alert("Subscribed to notifications successfully!");
+      } catch (error) {
+        console.error("Failed to subscribe to notifications:", error);
+        alert("Failed to subscribe to notifications. Please try again.");
       }
     },
   },
@@ -238,5 +254,21 @@ export default {
 
 .reset-chat-button:hover {
   background-color: #E64A19; /* Slightly darker red on hover */
+}
+
+
+.subscribe-button {
+  padding: 10px 15px;
+  background-color: #4CAF50; /* Green color for positive actions */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 15px;
+  transition: background-color 0.3s;
+}
+
+.subscribe-button:hover {
+  background-color: #45a049; /* Slightly darker green on hover */
 }
   </style>
