@@ -1,6 +1,8 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
+import { setLogLevel } from "firebase/app";
+setLogLevel("debug");
 
 const app = createApp(App);
 app.use(router);
@@ -40,4 +42,4 @@ async function registerServiceWorker(swPath, swName, config = null) {
 registerServiceWorker("/sw.js", "Custom");
 
 // Register Firebase Messaging Service Worker and pass Firebase config
-registerServiceWorker("/firebase-messaging-sw.js", "Firebase Messaging", firebaseConfig);   
+registerServiceWorker("/firebase-messaging-sw.js", "Firebase Messaging", firebaseConfig);

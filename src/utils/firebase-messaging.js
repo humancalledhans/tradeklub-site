@@ -9,6 +9,18 @@ const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
 export async function requestNotificationPermission() {
     console.log("Requesting Notification Permission");
     globalLogDebug("Notification permission requested");
+
+    console.log("beofre 1");
+    console.log("Notification" in window);
+    globalLogDebug("Notification" in window);
+    if (!("Notification" in window)) {
+        globalLogDebug("Notification API not supported");
+        console.error("Notification API not supported in this browser.");
+        return;
+    }
+
+    console.log("beofre 2");
+
     try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
