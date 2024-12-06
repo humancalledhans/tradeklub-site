@@ -8,11 +8,11 @@ const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
 
 export async function requestNotificationPermission() {
     console.log("Requesting Notification Permission");
-    globalLogDebug("Requesting Notification Permission");
+    globalLogDebug("1");
     try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-            globalLogDebug("notification permission not granted");
+            globalLogDebug("1a");
             console.error("Notification permission not granted.");
             return;
         }
@@ -23,7 +23,7 @@ export async function requestNotificationPermission() {
             const token = await getToken(messaging);
             if (token) {
                 console.log("FCM Token retrieved successfully:", token);
-                globalLogDebug("FCM token retrieved", token);
+                globalLogDebug("2", token);
 
                 // Send token to backend
                 await fetch(`${BACKEND_URL}/subscribe`, {
@@ -33,10 +33,10 @@ export async function requestNotificationPermission() {
                 })
                     .then((response) => {
                         if (!response.ok) {
-                            globalLogDebug("subscription error response", response.json());
+                            globalLogDebug("3", response.json());
                             console.error("Error subscribing:", response.status, response.statusText);
                         } else {
-                            globalLogDebug("subscription SUCCESS response", response.json());
+                            globalLogDebug("4 response", response.json());
                             console.log("Subscription successful:", response);
                         }
                     })
