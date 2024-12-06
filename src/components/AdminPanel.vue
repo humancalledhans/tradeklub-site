@@ -158,13 +158,11 @@ export default {
     async subscribeToNotifications() {
 
       console.log("subscribe to notification button clicked");
-      this.logDebug("subscribe to notification button clicked");
       try {
         await requestNotificationPermission(); // Calls the utility function to handle subscription
-        this.logDebug("requestNotificationPermission done");
         alert("Subscribed to notifications successfully!");
       } catch (error) {
-        this.logDebug("requestNotificationPermission error.", error);
+        this.logDebug("main notif func error.", error);
         console.error("Failed to subscribe to notifications:", error);
         alert("Failed to subscribe to notifications. Please try again.");
       }
