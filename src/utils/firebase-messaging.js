@@ -8,22 +8,23 @@ const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
 
 export async function requestNotificationPermission() {
     console.log("Requesting Notification Permission");
-    globalLogDebug("1");
+    globalLogDebug("Notification permission requested");
     try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-            globalLogDebug("1a");
+            globalLogDebug("Notification permission not granted.");
             console.error("Notification permission not granted.");
             return;
         }
 
+        globalLogDebug("Notification permission granted");
         console.log("Permission granted! Attempting to get FCM token...");
-        // Get FCM Token
+
         try {
             const token = await getToken(messaging);
             if (token) {
+                globalLogDebug("FCM token retrieved successfully", token);
                 console.log("FCM Token retrieved successfully:", token);
-                globalLogDebug("2", token);
 
                 // Send token to backend
                 await fetch(`${BACKEND_URL}/subscribe`, {
@@ -31,26 +32,27 @@ export async function requestNotificationPermission() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ token }),
                 })
-                    .then((response) => {
+                    .then(async (response) => {
+                        const responseData = await response.json(); // Resolve the response
                         if (!response.ok) {
-                            globalLogDebug("3", response.json());
-                            console.error("Error subscribing:", response.status, response.statusText);
+                            globalLogDebug("Subscription error response", responseData);
                         } else {
-                            globalLogDebug("4 response", response.json());
-                            console.log("Subscription successful:", response);
+                            globalLogDebug("Subscription success response", responseData);
                         }
                     })
                     .catch((error) => {
-                        console.error("Network error while subscribing:", error);
+                        globalLogDebug("Network error while subscribing", { error: error.message });
                     });
             } else {
-                globalLogDebug("fcm token retrived fail.",)
+                globalLogDebug("FCM token retrieval failed", "Token is null or undefined.");
                 console.error("Failed to retrieve FCM token. Token is null or undefined.");
             }
         } catch (error) {
+            globalLogDebug("Error while fetching FCM token", { error: error.message });
             console.error("Error while fetching FCM token:", error);
         }
     } catch (error) {
+        globalLogDebug("Error requesting notification permission", { error: error.message });
         console.error("Error requesting notification permission:", error);
     }
 }

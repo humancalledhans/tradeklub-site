@@ -174,6 +174,8 @@ export default {
       this.isAdmin = true; // Restore admin status
       this.fetchMessages(); // Fetch messages if logged in as admin
     }
+
+    this.loadLogsFromSessionStorage();
   },
 };
 </script>
