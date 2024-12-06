@@ -35,6 +35,14 @@
         />
         <button @click="sendAdminReply">Reply</button>
       </div>
+      <!-- Debug Window -->
+      <div class="debug-window">
+        <h3>Debug Console</h3>
+        <div v-for="log in debugLogs" :key="log.id" class="debug-log">
+          {{ log.timestamp }} - {{ log.message }}
+        </div>
+        <button @click="resetLogs" class="reset-logs-button">Reset Logs</button>
+      </div>
       </div>
     </div>
 </template>
@@ -52,9 +60,37 @@ export default {
       isAdmin: false, // Tracks if the user is logged in as admin
       messages: [],
       newMessage: "",
+      debugLogs: [],
     };
   },
   methods: {
+    resetLogs() {
+      sessionStorage.removeItem("debugLogs"); // Clear the logs from sessionStorage
+      this.debugLogs = []; // Clear the logs from the local state
+    },
+    logDebug(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      const newLog = { id: Date.now(), message, timestamp };
+
+      // Retrieve existing logs from sessionStorage or initialize empty
+      let logs = JSON.parse(sessionStorage.getItem("debugLogs")) || [];
+      logs.push(newLog);
+
+      // Keep only the latest 50 logs
+      if (logs.length > 50) {
+        logs.shift();
+      }
+
+      // Save updated logs back to sessionStorage
+      sessionStorage.setItem("debugLogs", JSON.stringify(logs));
+
+      // Update local debugLogs for real-time display
+      this.debugLogs = logs;
+    },
+    loadLogsFromSessionStorage() {
+      // Load logs from sessionStorage when the component is mounted
+      this.debugLogs = JSON.parse(sessionStorage.getItem("debugLogs")) || [];
+    },
     login() {
       if (
         this.username === process.env.VUE_APP_ADMIN_USERNAME &&
@@ -122,10 +158,13 @@ export default {
     async subscribeToNotifications() {
 
       console.log("subscribe to notification button clicked");
+      this.logDebug("subscribe to notification button clicked");
       try {
         await requestNotificationPermission(); // Calls the utility function to handle subscription
+        this.logDebug("requestNotificationPermission done");
         alert("Subscribed to notifications successfully!");
       } catch (error) {
+        this.logDebug("requestNotificationPermission error.", error);
         console.error("Failed to subscribe to notifications:", error);
         alert("Failed to subscribe to notifications. Please try again.");
       }
@@ -270,5 +309,43 @@ export default {
 
 .subscribe-button:hover {
   background-color: #45a049; /* Slightly darker green on hover */
+}
+
+.debug-window {
+  margin-top: 20px;
+  border: 1px solid #ddd;
+  padding: 10px;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.debug-window h3 {
+  margin-top: 0;
+  font-size: 1.2em;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+}
+
+.debug-log {
+  font-size: 0.9em;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.reset-logs-button {
+  padding: 10px 15px;
+  background-color: #d9534f; /* A red color for danger actions */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.3s;
+}
+
+.reset-logs-button:hover {
+  background-color: #c9302c; /* Slightly darker red on hover */
 }
   </style>

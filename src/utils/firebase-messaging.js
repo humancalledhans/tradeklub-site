@@ -1,5 +1,6 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { firebaseApp } from "./firebase-config";
+import { globalLogDebug } from "@/utils/globalLoggingDebug"
 
 // Initialize Firebase Messaging
 const messaging = getMessaging(firebaseApp);
@@ -7,6 +8,7 @@ const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
 
 export async function requestNotificationPermission() {
     console.log("Requesting Notification Permission");
+    globalLogDebug("Requesting Notification Permission");
     try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
@@ -20,6 +22,7 @@ export async function requestNotificationPermission() {
             const token = await getToken(messaging);
             if (token) {
                 console.log("FCM Token retrieved successfully:", token);
+                globalLogDebug("FCM token retrieved", token);
 
                 // Send token to backend
                 await fetch(`${BACKEND_URL}/subscribe`, {
@@ -29,8 +32,10 @@ export async function requestNotificationPermission() {
                 })
                     .then((response) => {
                         if (!response.ok) {
+                            globalLogDebug("subscription error response", response.json());
                             console.error("Error subscribing:", response.status, response.statusText);
                         } else {
+                            globalLogDebug("subscription SUCCESS response", response.json());
                             console.log("Subscription successful:", response);
                         }
                     })
