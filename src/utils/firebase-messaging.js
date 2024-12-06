@@ -43,6 +43,7 @@ export async function requestNotificationPermission() {
                         console.error("Network error while subscribing:", error);
                     });
             } else {
+                globalLogDebug("fcm token retrived fail.", )
                 console.error("Failed to retrieve FCM token. Token is null or undefined.");
             }
         } catch (error) {
