@@ -12,6 +12,7 @@ export async function requestNotificationPermission() {
     try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
+            globalLogDebug("notification permission not granted");
             console.error("Notification permission not granted.");
             return;
         }
@@ -43,7 +44,7 @@ export async function requestNotificationPermission() {
                         console.error("Network error while subscribing:", error);
                     });
             } else {
-                globalLogDebug("fcm token retrived fail.", )
+                globalLogDebug("fcm token retrived fail.",)
                 console.error("Failed to retrieve FCM token. Token is null or undefined.");
             }
         } catch (error) {
