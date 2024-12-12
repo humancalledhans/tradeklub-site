@@ -188,18 +188,9 @@ export default {
             }
         },
         async register() {
-            const auth = getAuth();
-            try {
-                const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
-                this.user = userCredential.user;
-
-                // Store user in sessionStorage after registration
-                sessionStorage.setItem('user', JSON.stringify(this.user));
-                alert("Registration successful! You can now login.");
-            } catch (error) {
-                console.error("Registration Error:", error.message);
-                alert("Registration failed. Please try again.");
-            }
+            // Redirect the user to the course purchase URL
+            const courseUrl = "https://www.tradelikethepros.com/offers/H9Vzg92f";
+            window.location.href = courseUrl;
         },
         resetPassword() {
             if (this.resetPasswordMode) {
