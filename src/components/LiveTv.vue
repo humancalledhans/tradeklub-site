@@ -1,92 +1,115 @@
 <template>
-    <div class="live-tv-layout">
-        <!-- First Column -->
-        <div class="column first-column">
-            <!-- Top Large Box (2/3 Height of First Column) -->
-            <div class="row-tv">
-                <div class="box-left">
-                    Tradeklub Television
-                </div>
-                <div class="tv-box-wrapper large" style="position:relative;">
-                    <iframe 
-                        :src="liveStreamUrl"
-                        allow="autoplay; fullscreen; microphone"
-                        allowfullscreen 
-                        frameborder="0" 
-                        style="position:absolute;top:0;left:0;width:100%;height:100%;">
-                    </iframe>
-                </div>
-            </div>
-            <!-- Bottom Small Box (1/3 Height of First Column) -->
-            <div class="row">
-                <div v-if="isMobile" ref="mobileContainer" :class="{ 'scoped-mobile-container': isMobile }">
-                    <TabbedComponent 
-                    :parentWidth="parentWidthMobile" 
-                    :parentHeight="parentHeightMobile" 
-                    />
-                </div>
-                <div v-else class="desktop-layout">
+    <div>
+        <!-- Login Prompt for the whole page -->
+        <div v-if="!user" class="auth-prompt">
+        <h3>Please login to access Live TV</h3>
+        <input
+            v-model="email"
+            placeholder="Email"
+            type="email"
+            class="login-input"
+        />
+        <input
+            v-model="password"
+            placeholder="Password"
+            type="password"
+            class="login-input"
+            @keyup.enter="login"
+        />
+        <button @click="login" class="login-button">Login</button>
+        <button @click="register" class="register-button">Register</button>
+        </div>
+
+        <!-- If user is logged in, show the Live TV page -->
+        <div class="live-tv-layout" v-else>
+            <!-- First Column -->
+            <div class="column first-column">
+                <!-- Top Large Box (2/3 Height of First Column) -->
+                <div class="row-tv">
                     <div class="box-left">
-                    Top News
+                        Tradeklub Television
                     </div>
-                    <div class="split-container">
-                    <div class="rss-widget-wrapper">
+                    <div class="tv-box-wrapper large" style="position:relative;">
                         <iframe 
-                        ref="rssWidgetIframe" 
-                        src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
-                        frameborder="0"
-                        scrolling="no"
-                        style="width: 100%; height: 100%; box-sizing: border-box;">
+                            :src="liveStreamUrl"
+                            allow="autoplay; fullscreen; microphone"
+                            allowfullscreen 
+                            frameborder="0" 
+                            style="position:absolute;top:0;left:0;width:100%;height:100%;">
                         </iframe>
                     </div>
-                    <div class="right-half" ref="chatContainer">
-                        <ChatComponent 
-                        :width="parentWidth" 
-                        :height="parentHeight" 
-                        role="viewer" 
-                        ref="chatComponent" 
+                </div>
+                <!-- Bottom Small Box (1/3 Height of First Column) -->
+                <div class="row">
+                    <div v-if="isMobile" ref="mobileContainer" :class="{ 'scoped-mobile-container': isMobile }">
+                        <TabbedComponent 
+                        :parentWidth="parentWidthMobile" 
+                        :parentHeight="parentHeightMobile" 
                         />
                     </div>
+                    <div v-else class="desktop-layout">
+                        <div class="box-left">
+                        Top News
+                        </div>
+                        <div class="split-container">
+                        <div class="rss-widget-wrapper">
+                            <iframe 
+                            ref="rssWidgetIframe" 
+                            src="https://rss.app/embed/v1/list/tMxZaYsazbSxiR4r" 
+                            frameborder="0"
+                            scrolling="no"
+                            style="width: 100%; height: 100%; box-sizing: border-box;">
+                            </iframe>
+                        </div>
+                        <div class="right-half" ref="chatContainer">
+                            <ChatComponent 
+                            :width="parentWidth" 
+                            :height="parentHeight" 
+                            role="viewer" 
+                            ref="chatComponent" 
+                            />
+                        </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Second Column -->
-        <div class="column second-column">
-            <!-- Top Large Box (4/5 Height of Second Column) -->
-            <div class="box-wrapper center-large">
-                <div
-                    class="tradingview-widget-container"
-                    ref="tradingViewWidget"
-                    style="width: 100%; height: 100%;"
-                ></div>
-            </div>
-            <!-- Bottom Small Box (1/5 Height of Second Column) -->
-            <div class="box-wrapper center-small">
-                <div class="tradingview-widget-container" ref="tradingViewEventsWidget"></div>
-            </div>
-        </div>
-
-        <!-- Third Column -->
-        <div class="column third-column">
-            <!-- Grid container for widgets -->
-            <div 
-                class="scroll-container"
-                ref="scrollContainer"
-                @mouseenter="stopAutoScroll"
-                @mouseleave="startAutoScroll"
-            >
-                <div class="grid-container">
+            <!-- Second Column -->
+            <div class="column second-column">
+                <!-- Top Large Box (4/5 Height of Second Column) -->
+                <div class="box-wrapper center-large">
                     <div
-                        v-for="(widget, index) in widgetSymbols"
-                        :key="index"
-                        class="grid-item"
-                    >
+                        class="tradingview-widget-container"
+                        ref="tradingViewWidget"
+                        style="width: 100%; height: 100%;"
+                    ></div>
+                </div>
+                <!-- Bottom Small Box (1/5 Height of Second Column) -->
+                <div class="box-wrapper center-small">
+                    <div class="tradingview-widget-container" ref="tradingViewEventsWidget"></div>
+                </div>
+            </div>
+
+            <!-- Third Column -->
+            <div class="column third-column">
+                <!-- Grid container for widgets -->
+                <div 
+                    class="scroll-container"
+                    ref="scrollContainer"
+                    @mouseenter="stopAutoScroll"
+                    @mouseleave="startAutoScroll"
+                >
+                    <div class="grid-container">
                         <div
-                            class="tradingview-widget-container"
-                            :ref="'tradingViewWidget' + index"
-                        ></div>
+                            v-for="(widget, index) in widgetSymbols"
+                            :key="index"
+                            class="grid-item"
+                        >
+                            <div
+                                class="tradingview-widget-container"
+                                :ref="'tradingViewWidget' + index"
+                            ></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -96,6 +119,7 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import ChatComponent from "./ChatComponent.vue"; 
 import TabbedComponent from "./TabbedComponent.vue";
 
@@ -122,6 +146,7 @@ export default {
             parentHeight: null,
             parentWidthMobile: 0,
             parentWidthHeight: 0,
+            user: null,
         };
     },
     computed: {
@@ -148,6 +173,57 @@ export default {
         },
     },
     methods: {
+        async login() {
+            const auth = getAuth();
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, this.email, this.password);
+                this.user = userCredential.user;
+
+                // Store user in sessionStorage after login
+                sessionStorage.setItem('user', JSON.stringify(this.user));
+                this.fetchMessages(); // Fetch messages if needed
+            } catch (error) {
+                console.error("Login Error:", error.message);
+                alert("Login failed. Please check your credentials.");
+            }
+        },
+        async register() {
+            const auth = getAuth();
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
+                this.user = userCredential.user;
+
+                // Store user in sessionStorage after registration
+                sessionStorage.setItem('user', JSON.stringify(this.user));
+                alert("Registration successful! You can now login.");
+            } catch (error) {
+                console.error("Registration Error:", error.message);
+                alert("Registration failed. Please try again.");
+            }
+        },
+        resetPassword() {
+            if (this.resetPasswordMode) {
+                const auth = getAuth();
+                if (!this.emailForReset) {
+                alert("Please enter your email address to reset your password.");
+                return;
+                }
+                sendPasswordResetEmail(auth, this.emailForReset)
+                .then(() => {
+                    alert("Password reset email sent! Please check your inbox.");
+                    this.resetPasswordMode = false;
+                })
+                .catch((error) => {
+                    console.error("Password reset error", error);
+                    alert("Error sending password reset email. Please try again.");
+                });
+            } else {
+                this.resetPasswordMode = true;
+            }
+        },
+        cancelResetPassword() {
+            this.resetPasswordMode = false;
+        },
         isMobile() {
             return window.innerWidth <= 768; // You can adjust the breakpoint as needed
         },
@@ -212,6 +288,7 @@ export default {
             }
         },
         initializeTradingViewWidgetForClone(clonedElement, symbol) {
+            console.log("initialize trading view widget for clone");
             const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
 
             if (widgetContainer) {
@@ -442,7 +519,7 @@ export default {
         this.initializeTradingViewEventsWidget();
 
         // Preload clones
-        this.preloadClones();
+        // this.preloadClones();
 
         this.startAutoScroll();
         window.addEventListener("resize", this.calculateHeights);
@@ -458,6 +535,23 @@ export default {
         }
 
         window.addEventListener("resize", this.updateChatDimensions);
+
+        const storedUser = sessionStorage.getItem('user');
+        if (storedUser) {
+            this.user = JSON.parse(storedUser); // Parse the stored user data from sessionStorage
+        }
+
+        this.$nextTick(() => {
+            if (this.$refs.scrollContainer) {
+                this.preloadClones(); // Call preloadClones when DOM is ready
+            } else {
+                console.error("Scroll container is not ready yet.");
+            }
+        });
+        this.$nextTick(() => {
+            this.initializeTradingViewWidget();
+            this.initializeTradingViewEventsWidget();
+        });
     },
     beforeUnmount() {
         this.enableScrolling();
@@ -743,5 +837,40 @@ export default {
 .scoped-mobile-container {
     height: 100%;
     width: 100%;
+}
+
+.auth-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.login-input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.login-button, .register-button {
+  padding: 12px 20px;
+  background-color: #162D5D;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 10px 0;
+  width: 100%;
+}
+
+.login-button:hover, .register-button:hover {
+  background-color: #315297;
 }
 </style>
