@@ -2,22 +2,28 @@
     <div>
         <!-- Login Prompt for the whole page -->
         <div v-if="!user" class="auth-prompt">
-        <h3>Please login to access Live TV</h3>
-        <input
-            v-model="email"
-            placeholder="Email"
-            type="email"
-            class="login-input"
-        />
-        <input
-            v-model="password"
-            placeholder="Password"
-            type="password"
-            class="login-input"
-            @keyup.enter="login"
-        />
-        <button @click="login" class="login-button">Login</button>
-        <button @click="register" class="register-button">Register</button>
+            <h3>Please login to access Live TV</h3>
+
+            <!-- First time login prompt -->
+            <p v-if="firstTimeLogin" class="first-time-login-prompt">
+                First time logging in? Check your email for a temporary password.
+            </p>
+
+            <input
+                v-model="email"
+                placeholder="Email"
+                type="email"
+                class="login-input"
+            />
+            <input
+                v-model="password"
+                placeholder="Password"
+                type="password"
+                class="login-input"
+                @keyup.enter="login"
+            />
+            <button @click="login" class="login-button">Login</button>
+            <button @click="register" class="register-button">Register</button>
         </div>
 
         <!-- If user is logged in, show the Live TV page -->
@@ -119,7 +125,7 @@
 
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import ChatComponent from "./ChatComponent.vue"; 
 import TabbedComponent from "./TabbedComponent.vue";
 
@@ -147,6 +153,7 @@ export default {
             parentWidthMobile: 0,
             parentWidthHeight: 0,
             user: null,
+            firstTimeLogin: true,
         };
     },
     computed: {
@@ -863,5 +870,11 @@ export default {
 
 .login-button:hover, .register-button:hover {
   background-color: #315297;
+}
+
+.first-time-login-prompt {
+    color: #FF9800;
+    font-size: 14px;
+    margin-bottom: 10px;
 }
 </style>
