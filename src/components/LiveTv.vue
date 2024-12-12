@@ -185,11 +185,15 @@ export default {
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, this.email, this.password);
                 this.user = userCredential.user;
-
+                
                 // Store user in sessionStorage after login
                 sessionStorage.setItem('user', JSON.stringify(this.user));
-                this.fetchMessages(); // Fetch messages if needed
+                
+                // Reset first time login state if successful login
+                this.firstTimeLogin = false;
+
             } catch (error) {
+                console.log("error 99231", error);
                 console.error("Login Error:", error.message);
                 alert("Login failed. Please check your credentials.");
             }
