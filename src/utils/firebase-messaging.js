@@ -1,25 +1,77 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { firebaseApp } from "./firebase-config";
-import { globalLogDebug } from "@/utils/globalLoggingDebug"
+import { globalLogDebug } from "@/utils/globalLoggingDebug";
 
 // Initialize Firebase Messaging
 const messaging = getMessaging(firebaseApp);
 const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
 
+// Helper functions for local storage
+const storeTokenInLocalStorage = (token) => {
+    localStorage.setItem('fcmToken', token);
+};
+
+const getTokenFromLocalStorage = () => {
+    return localStorage.getItem('fcmToken');
+};
+
+// Function to check and update token
+const checkToken = async () => {
+    try {
+        const currentToken = await getToken(messaging);
+        if (currentToken) {
+            const storedToken = getTokenFromLocalStorage();
+            if (currentToken !== storedToken) {
+                console.log('Token changed:', currentToken);
+                globalLogDebug("Token changed", currentToken);
+                storeTokenInLocalStorage(currentToken);
+
+                // Send this token to your server
+                fetch(`${BACKEND_URL}/updateToken`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token: currentToken })
+                })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log('Token update response:', data);
+                        globalLogDebug("Token update response", data);
+                    })
+                    .catch((error) => {
+                        console.error('Error sending refreshed token to server:', error);
+                        globalLogDebug("Error sending refreshed token to server", { error: error.message });
+                    });
+            } else {
+                console.log('Token unchanged');
+            }
+        } else {
+            console.log('No Instance ID token available. Request permission to generate one.');
+            globalLogDebug("No Instance ID token available");
+        }
+    } catch (error) {
+        console.error('An error occurred while retrieving token:', error);
+        globalLogDebug("Error retrieving token", { error: error.message });
+    }
+};
+
+// Call this function when you initialize your app or when you think the token might have changed
+// For example, on app load or after significant user actions that might lead to token refresh
+checkToken();
+
+// Or you can set an interval to periodically check for token changes
+setInterval(checkToken, 60000); // Every minute, for example
+
 export async function requestNotificationPermission() {
     console.log("Requesting Notification Permission");
     globalLogDebug("Notification permission requested");
 
-    console.log("beofre 1");
-    console.log("Notification" in window);
-    globalLogDebug("Notification" in window);
     if (!("Notification" in window)) {
         globalLogDebug("Notification API not supported");
         console.error("Notification API not supported in this browser.");
         return;
     }
-
-    console.log("beofre 2");
 
     try {
         const permission = await Notification.requestPermission();
@@ -37,15 +89,16 @@ export async function requestNotificationPermission() {
             if (token) {
                 globalLogDebug("FCM token retrieved successfully", token);
                 console.log("FCM Token retrieved successfully:", token);
+                storeTokenInLocalStorage(token); // Store the token
 
-                // Send token to backend
+                // Directly send token to backend without user profile
                 await fetch(`${BACKEND_URL}/subscribe`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ token }),
                 })
                     .then(async (response) => {
-                        const responseData = await response.json(); // Resolve the response
+                        const responseData = await response.json();
                         if (!response.ok) {
                             globalLogDebug("Subscription error response", responseData);
                         } else {
@@ -57,6 +110,7 @@ export async function requestNotificationPermission() {
                     });
             } else {
                 globalLogDebug("FCM token retrieval failed", "Token is null or undefined.");
+                console.log("Failed to retrieve FCM token. Token is null or undefined.");
                 console.error("Failed to retrieve FCM token. Token is null or undefined.");
             }
         } catch (error) {
@@ -71,9 +125,9 @@ export async function requestNotificationPermission() {
 
 // Listen for foreground messages
 onMessage(messaging, (payload) => {
+    console.log("on message called");
     console.log("Message received in foreground:", payload);
 
-    // Optionally display a notification
     const notificationTitle = payload.notification?.title || "Default Foreground Title";
     const notificationOptions = {
         body: payload.notification?.body || "Default Foreground Body",

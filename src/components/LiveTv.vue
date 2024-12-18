@@ -154,6 +154,9 @@ export default {
             parentWidthHeight: 0,
             user: null,
             firstTimeLogin: true,
+            email: "",
+            password: "",
+            parentHeightMobile: 0,
         };
     },
     computed: {
@@ -290,7 +293,7 @@ export default {
             }
         },
         initializeTradingViewWidgetForClone(clonedElement, symbol) {
-            console.log("initialize trading view widget for clone");
+            // console.log("initialize trading view widget for clone");
             const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
 
             if (widgetContainer) {

@@ -21,25 +21,52 @@ if (!firebaseInitialized) {
 }
 
 function initializeFirebase(config) {
-    importScripts('https://www.gstatic.com/firebasejs/9.16.0/firebase-app.js');
-    importScripts('https://www.gstatic.com/firebasejs/9.16.0/firebase-messaging.js');
+    try {
+        importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js');
+        importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging.js');
 
-    firebase.initializeApp(config);
-    const messaging = firebase.messaging();
+        firebase.initializeApp(config);
+        const messaging = firebase.messaging();
 
-    console.log("Firebase initialized in Service Worker with config:", config);
+        console.log("Firebase initialized in Service Worker with config:", config);
 
-    messaging.onBackgroundMessage((payload) => {
-        console.log("Received background message:", payload);
+        messaging.onBackgroundMessage((payload) => {
+            console.log("Received background message:", payload);
 
-        const notificationTitle = payload.notification?.title || "Default Title";
-        const notificationOptions = {
-            body: payload.notification?.body || "Default Body",
-            icon: payload.notification?.icon || "/default-icon.png",
-        };
+            const notificationTitle = payload.notification?.title || "Default Title";
+            const notificationOptions = {
+                body: payload.notification?.body || "Default Body",
+                icon: payload.notification?.icon || "/default-icon.png",
+            };
 
-        self.registration.showNotification(notificationTitle, notificationOptions);
-    });
+            self.registration.showNotification(notificationTitle, notificationOptions);
+        });
 
-    firebaseInitialized = true;
+        firebaseInitialized = true;
+    } catch (error) {
+        console.error("Error initializing Firebase in Service Worker:", error);
+    }
 }
+
+// Handle generic push events (in case you use another push service in future or for testing)
+self.addEventListener("push", (event) => {
+    const data = event.data.json();
+    const title = data.title || "Default Title";
+    const options = {
+        body: data.body || "Default body",
+        icon: data.icon || "/favicon.ico",
+        badge: data.badge || "/favicon.ico",
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Handle notification click events
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const notificationData = event.notification.data;
+    if (notificationData && notificationData.url) {
+        event.waitUntil(clients.openWindow(notificationData.url));
+    } else {
+        console.log("No URL found in notification data.");
+    }
+});
