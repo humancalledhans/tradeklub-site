@@ -18,14 +18,19 @@ const getTokenFromLocalStorage = () => {
 // Function to check and update token
 const checkToken = async () => {
     try {
+        globalLogDebug("CT 1");
         const currentToken = await getToken(messaging);
         if (currentToken) {
+            globalLogDebug("CT 2a");
             const storedToken = getTokenFromLocalStorage();
+
+            globalLogDebug("CT 3a");
             if (currentToken !== storedToken) {
                 console.log('Token changed:', currentToken);
                 globalLogDebug("Token changed", currentToken);
                 storeTokenInLocalStorage(currentToken);
 
+                globalLogDebug("CT 4a call updateToken endpoint");
                 // Send this token to your server
                 fetch(`${BACKEND_URL}/updateToken`, {
                     method: 'POST',
@@ -36,6 +41,7 @@ const checkToken = async () => {
                 })
                     .then((response) => response.json())
                     .then((data) => {
+                        globalLogDebug("CT 5a token update response");
                         console.log('Token update response:', data);
                         globalLogDebug("Token update response", data);
                     })
@@ -44,9 +50,11 @@ const checkToken = async () => {
                         globalLogDebug("Error sending refreshed token to server", { error: error.message });
                     });
             } else {
+                globalLogDebug("CT 1b token unchanged");
                 console.log('Token unchanged');
             }
         } else {
+            globalLogDebug("CT 1c no instance id token available. request perm");
             console.log('No Instance ID token available. Request permission to generate one.');
             globalLogDebug("No Instance ID token available");
         }
