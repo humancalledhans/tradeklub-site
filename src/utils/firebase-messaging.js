@@ -17,6 +17,13 @@ const getTokenFromLocalStorage = () => {
 
 // Function to check and update token
 const checkToken = async () => {
+
+    if (!("Notification" in window)) {
+        globalLogDebug("Notification API not supported CT");
+        console.error("Notification API not supported in this browser.");
+        return;
+    }
+
     try {
         globalLogDebug("CT 1");
         const currentToken = await getToken(messaging);
