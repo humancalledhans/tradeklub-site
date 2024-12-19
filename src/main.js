@@ -32,8 +32,8 @@ isSupported().then(supported => {
         Notification.requestPermission().then((permission) => {
             if (permission === 'granted') {
                 console.log('Notification permission granted.');
-                // Get Instance ID token. Initially this makes a network call, once retrieved
-                // subsequent calls to getToken will return from cache.
+
+                // Get Instance ID token
                 getToken(messaging, { vapidKey: process.env.VUE_APP_FIREBASE_VAPID_KEY }).then((currentToken) => {
                     if (currentToken) {
                         console.log('Token:', currentToken);
@@ -48,20 +48,90 @@ isSupported().then(supported => {
                 // Handle foreground messages
                 onMessage(messaging, (payload) => {
                     console.log('Message received. ', payload);
-                    // Here you can handle the notification when the app is in the foreground
-                    // For instance, you can show a toast or update the UI directly
                     const notificationTitle = payload.notification.title;
                     const notificationOptions = {
                         body: payload.notification.body,
                         icon: payload.notification.icon || "/default-icon.png",
                     };
 
-                    // If you want to show a system notification even in the foreground:
                     new Notification(notificationTitle, notificationOptions);
-
-                    // Or you might prefer to show an in-app notification or update UI
-                    // Example: app.config.globalProperties.$notify({ title: notificationTitle, message: notificationOptions.body });
                 });
+
+                // Mock message for testing foreground notifications
+                const mockMessage = {
+                    notification: {
+                        title: "Test Notification",
+                        body: "This is a test of the foreground notification system!",
+                        icon: "/default-icon.png" // Ensure this path is correct for your project
+                    },
+                };
+
+                // Function to simulate receiving a message
+                const simulateMessage = (payload) => {
+                    console.log("Simulated message received in foreground:", payload);
+
+                    // Check if the Notification API is available
+                    if (!('Notification' in window)) {
+                        console.error("Notification API is not available in this browser.");
+                        return;
+                    }
+
+                    // Check notification permission
+                    console.log("Notification permission status:", Notification.permission);
+
+                    if (Notification.permission === 'granted') {
+                        // Permission is granted; create the notification
+                        console.log("Permission granted. Creating notification...");
+
+                        const notificationTitle = payload.notification?.title || 'Default Title';
+                        const notificationOptions = {
+                            body: payload.notification?.body || 'Default Body',
+                            icon: payload.notification?.icon || '/default-icon.png',
+                        };
+
+                        console.log("Notification details:", { title: notificationTitle, options: notificationOptions });
+
+                        // Create the notification
+                        try {
+                            new Notification(notificationTitle, notificationOptions);
+                            console.log("Notification created successfully.");
+                        } catch (error) {
+                            console.error("Error creating notification:", error);
+                        }
+                    } else if (Notification.permission === 'default') {
+                        // Permission is not yet requested; ask for permission
+                        console.log("Notification permission is default. Requesting permission...");
+
+                        Notification.requestPermission().then((permission) => {
+                            console.log("Notification permission result:", permission);
+                            if (permission === 'granted') {
+                                const notificationTitle = payload.notification?.title || 'Default Title';
+                                const notificationOptions = {
+                                    body: payload.notification?.body || 'Default Body',
+                                    icon: payload.notification?.icon || '/default-icon.png',
+                                };
+
+                                try {
+                                    new Notification(notificationTitle, notificationOptions);
+                                    console.log("Notification created successfully after permission granted.");
+                                } catch (error) {
+                                    console.error("Error creating notification after permission granted:", error);
+                                }
+                            } else {
+                                console.warn("Notification permission denied or dismissed.");
+                            }
+                        }).catch((error) => {
+                            console.error("Error requesting notification permission:", error);
+                        });
+                    } else if (Notification.permission === 'denied') {
+                        // Permission is denied
+                        console.warn("Notifications are blocked. Please enable notifications in browser settings.");
+                    }
+                };
+
+                // Simulate receiving a message
+                simulateMessage(mockMessage);
+
             } else {
                 console.log('Unable to get permission to notify.');
             }
