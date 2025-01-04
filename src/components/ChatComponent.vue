@@ -1,6 +1,14 @@
 <template>
   <div class="chat-wrapper" :style="{ width: `${width}px`, height: `${parentHeight}px` }">
-    <div
+    <iframe
+        title="100ms-app"
+        allow="camera *;microphone *;display-capture *"
+        src="https://hans-audioroom-1207.app.100ms.live/meeting/zhu-ofsq-yro"
+        style="height: 100%; width: 100%; border:0;"
+    >
+    </iframe>
+
+    <!-- <div
       class="chat-window"
       :style="{ maxHeight: `${availableChatHeight - 20}px`, height: `${availableChatHeight}px`, overflowY: 'auto' }"
       ref="chatWindow"
@@ -21,29 +29,38 @@
           <button @click="deleteMessage(msg.id)">Delete</button>
         </div>
       </div>
-    </div>
+    </div> -->
 
-    <div class="input-wrapper">
-      <input
-        v-model="newMessage"
-        :placeholder="computedPlaceholder"
-        @keyup.enter="sendMessage"
-        :disabled="sendingMessage"
-      />
-      <button @click="sendMessage" :disabled="sendingMessage">Send</button>
+    <!-- <div>
 
-      <!-- Vertical Three Dots Menu -->
-      <div class="three-dots" @click="toggleMenu">
-        <span class="dot">⋮</span>
+      <div class="control-buttons">
+        <button @click="joinRoom" :disabled="isConnected">Join Room</button>
+        <button @click="toggleAudio" :disabled="!isConnected">{{ isAudioEnabled ? 'Mute' : 'Unmute' }}</button>
       </div>
-      <div v-if="showMenu" class="overlay" @click="closeMenu">
-        <div class="menu" @click.stop>
-          <button @click="logout" class="dropdown-item">Sign Out</button>
-          <button @click="resetPassword" class="dropdown-item">Reset Password</button>
+     
+
+      <div class="input-wrapper">
+        <input
+          v-model="newMessage"
+          :placeholder="computedPlaceholder"
+          @keyup.enter="sendMessage"
+          :disabled="sendingMessage"
+        />
+        <button @click="sendMessage" :disabled="sendingMessage">Send</button>
+
+
+        <div class="three-dots" @click="toggleMenu">
+          <span class="dot">⋮</span>
+        </div>
+        <div v-if="showMenu" class="overlay" @click="closeMenu">
+          <div class="menu" @click.stop>
+            <button @click="logout" class="dropdown-item">Sign Out</button>
+            <button @click="resetPassword" class="dropdown-item">Reset Password</button>
+          </div>
         </div>
       </div>
     </div>
-    <!-- Reset Password Email Input -->
+
     <div v-if="resetPasswordMode" class="reset-password-modal">
       <input 
         v-model="emailForReset" 
@@ -53,12 +70,20 @@
       />
       <button @click="resetPassword" class="reset-password-btn">Submit</button>
       <button @click="cancelResetPassword" class="reset-password-btn">Cancel</button>
-    </div>
+    </div> -->
   </div>
 </template>
 
 <script>
 import { db } from "@/utils/firebase-config";
+import {
+  HMSReactiveStore,
+  selectIsLocalAudioEnabled,
+  selectIsLocalVideoEnabled,
+  selectPeers,
+  selectIsConnectedToRoom
+} from "@100mslive/hms-video-store";
+
 import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, getDocs, limit, startAfter } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 
@@ -92,6 +117,14 @@ export default {
       loadingMoreMessages: false,
       showMenu: false,
       resetPasswordMode: false,
+      // hms below
+      hmsManager: null,
+      hmsStore: null,
+      hmsActions: null,
+      isAudioEnabled: false,
+      isVideoEnabled: false,
+      peers: [],
+      isConnected: false
     };
   },
   computed: {
@@ -115,7 +148,182 @@ export default {
       return Number.isFinite(calculatedHeight) ? calculatedHeight : 0;
     },
   },
+  watch: {
+    user: {
+      handler(newUser) {
+        console.log("new user data set.", newUser);
+        if (newUser && newUser.uid) { // Check if user has a valid id or whatever property signifies a valid user
+
+          console.log("new user data uid set.", newUser.uid);
+          this.initializeHMS();
+        }
+      },
+      immediate: true // This ensures the watcher runs immediately after the component is created if 'user' is already set
+    }
+  },
   methods: {
+    async initializeHMS() {
+      try {
+        // Assuming you have userId and role available, perhaps from props, data, or computed properties
+
+        console.log("verify uid is correct", this.user.uid);
+        const userId = this.user.uid; // Replace with actual user ID
+
+        const { token, roomId } = await this.fetchAuthToken(userId, this.role);
+
+        console.log('check token', token);
+        console.log('check roomid', roomId);
+
+        if (!token) {
+          throw new Error('Failed to fetch auth token');
+        }
+        
+        this.hmsManager = new HMSReactiveStore();
+        this.hmsManager.triggerOnSubscribe();
+        this.hmsStore = this.hmsManager.getStore();
+        this.hmsActions = this.hmsManager.getHMSActions();
+
+        // Subscribing to state changes
+        this.hmsStore.subscribe(this.updateLocalState, selectIsLocalAudioEnabled);
+        this.hmsStore.subscribe(this.updateLocalState, selectIsLocalVideoEnabled);
+        this.hmsStore.subscribe(this.updatePeers, selectPeers);
+        this.hmsStore.subscribe(this.updateConnectionState, selectIsConnectedToRoom);
+
+        // Join the room or perform other actions here
+        this.joinRoom(token);
+        
+        console.log('HMS initialized and joined the room');
+
+        this.setupEventListeners();
+
+      } catch (error) {
+        console.error('Error initializing HMS', error);
+      }
+    },
+    updateLocalState() {
+      this.isAudioEnabled = this.hmsStore.getState(selectIsLocalAudioEnabled);
+      this.isVideoEnabled = this.hmsStore.getState(selectIsLocalVideoEnabled);
+      console.log('Audio state updated to:', this.isAudioEnabled);
+      console.log('Video state updated to:', this.isVideoEnabled);
+    },
+    updatePeers(newPeers) {
+      this.peers = newPeers;
+    },
+    updateConnectionState(isConnected) {
+      this.isConnected = isConnected;
+    },
+    async joinRoom(authToken) {
+      try {
+        this.isMicPermissionGranted = false; // Initialize permission state
+        await this.hmsActions.join({
+          authToken: authToken,
+          userName: this.user.displayName,
+          settings: {
+              isAudioMuted: true,
+              isVideoMuted: false
+          },
+          metaData: JSON.stringify({city: 'Winterfell', knowledge: 'nothing'}),
+          // metaData: {},
+          rememberDeviceSelection: true, 
+        });
+        this.isConnected = true;
+      } catch (error) {
+        console.error('Error joining room:', error);
+      }
+    },
+    async requestMicPermission() {
+      try {
+        console.log("current permission state:", this.isMicPermissionGranted);
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("permission after request:", this.isMicPermissionGranted);
+      } catch (err) {
+        console.error('Microphone permission denied:', err);
+        this.showToast('Microphone permission is required for audio');
+        // Here you might want to guide the user to settings or try again
+      }
+    },
+    async toggleAudio() {
+      if (!this.isMicPermissionGranted) {
+        try {
+          await this.requestMicPermission();
+          this.isMicPermissionGranted = true;
+        } catch (error) {
+          return;
+        }
+      }
+
+      if (!this.isConnected) {
+        console.log("you're not in a room.");
+        return;
+      }
+
+      try {
+        const currentState = await this.hmsStore.getState(selectIsLocalAudioEnabled);
+        await this.hmsActions.setLocalAudioEnabled(!currentState);
+        
+        // Define unsubscribeFunc before using it, even if it's null or undefined initially
+        let unsubscribeFunc;
+
+        unsubscribeFunc = this.hmsStore.subscribe(selectIsLocalAudioEnabled, (audioEnabled) => {
+          this.isAudioEnabled = audioEnabled;
+          console.log("audio enabled.");
+          console.log("Unsubscribe function:", unsubscribeFunc); // Log to see what it is
+        });
+
+        // Now you can safely check or use unsubscribeFunc
+        if (typeof unsubscribeFunc === 'function') {
+          unsubscribeFunc(); // Call it if it's a function
+        } else if (unsubscribeFunc && typeof unsubscribeFunc.unsubscribe === 'function') {
+          unsubscribeFunc.unsubscribe(); // If it's an object with an unsubscribe method
+        } else {
+          console.warn("No valid unsubscribe method found");
+        }
+      } catch (error) {
+        console.error('Audio toggle failed:', error);
+      }
+    },
+    // Assuming you have this method or similar in your component to fetch the token from your backend
+    async fetchAuthToken(userId) {
+      try {
+
+        const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
+
+        const response = await fetch(BACKEND_URL +'/generate-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ user_id: userId })
+        });
+        const data = await response.json();
+        return { token: data.token, roomId: data.room_id };
+      } catch (error) {
+        console.error('Error fetching auth token:', error);
+        return null;
+      }
+    },
+    setupEventListeners() {
+      if (this.hmsInstance){
+        this.hmsInstance.on('peerJoined', (peer) => {
+          console.log('Peer Joined', peer);
+        });
+      }
+      // Add other event listeners as needed
+    },
+    beforeDestroy() {
+      if (this.hmsActions) {
+        this.hmsActions.leave();
+      }
+
+        // Unsubscribe from all the subscriptions
+      if (this.hmsStore) { 
+        // If you don't have individual unsubscribe methods stored, you might need to manually unsubscribe
+        this.hmsStore.unsubscribe(this.updateLocalState, selectIsLocalAudioEnabled);
+        this.hmsStore.unsubscribe(this.updateLocalState, selectIsLocalVideoEnabled);
+        this.hmsStore.unsubscribe(this.updatePeers, selectPeers);
+        this.hmsStore.unsubscribe(this.updateConnectionState, selectIsConnectedToRoom);
+      }
+    },
     resetPassword() {
       if (this.resetPasswordMode) {
         const auth = getAuth();
@@ -660,5 +868,12 @@ export default {
 .reset-password-btn:hover {
   background-color: #315297;
 }
+
+.control-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 
 </style>

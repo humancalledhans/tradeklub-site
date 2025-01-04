@@ -24,6 +24,22 @@
             />
             <button @click="login" class="login-button">Login</button>
             <button @click="register" class="register-button">Register</button>
+            <button @click="resetPassword" class="reset-password-button">Reset Password</button>
+
+            <!-- Reset Password Modal -->
+            <div v-if="resetPasswordMode" class="modal-overlay">
+                <div class="modal-content">
+                    <h3>Reset Password</h3>
+                    <input
+                        v-model="emailForReset"
+                        placeholder="Enter your email address"
+                        type="email"
+                        class="login-input"
+                    />
+                    <button @click="resetPassword" class="reset-password-submit">Send Reset Email</button>
+                    <button @click="resetPasswordMode = false" class="modal-close">Cancel</button>
+                </div>
+            </div>
         </div>
 
         <!-- If user is logged in, show the Live TV page -->
@@ -156,6 +172,8 @@ export default {
             firstTimeLogin: true,
             email: "",
             password: "",
+            resetPasswordMode: false,
+            showMenu: false,
             parentHeightMobile: 0,
         };
     },
@@ -879,9 +897,69 @@ export default {
   background-color: #315297;
 }
 
+
+.reset-password-button {
+  padding: 12px 20px;
+  background-color: #FF7043;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 10px 0;
+  width: 100%;
+}
+
+.reset-password-button:hover,{
+  background-color: #315297;
+}
+
+
 .first-time-login-prompt {
     color: #FF9800;
     font-size: 14px;
     margin-bottom: 10px;
+}
+
+
+.reset-password-submit,
+.modal-close {
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease, transform 0.1s ease;
+    margin: 5px;
+    outline: none;
+}
+
+.reset-password-submit {
+    background-color: #1976D2; /* Deep Blue for the action */
+    color: white;
+}
+
+.reset-password-submit:hover {
+    background-color: #1565C0; /* Darker shade on hover */
+    transform: translateY(-1px);
+}
+
+.reset-password-submit:active {
+    transform: translateY(1px);
+}
+
+.modal-close {
+    background-color: #E0E0E0; /* Light grey for cancel */
+    color: #333;
+}
+
+.modal-close:hover {
+    background-color: #BDBDBD; /* Slightly darker on hover */
+    color: #000;
+    transform: translateY(-1px);
+}
+
+.modal-close:active {
+    transform: translateY(1px);
 }
 </style>

@@ -36,6 +36,7 @@
   </template>
   
   <script>
+  // NOTE that TabbedComponent is used for mobile.
   import ChatComponent from "./ChatComponent.vue"; 
   export default {
     name: "TabbedComponent",
