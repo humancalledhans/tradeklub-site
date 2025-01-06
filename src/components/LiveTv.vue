@@ -1,7 +1,7 @@
 <template>
     <div>
         <!-- Login Prompt for the whole page -->
-        <div v-if="!user" class="auth-prompt">
+        <div v-if="!user && showAuthPrompt" class="auth-prompt">
             <h3>Please login to access Live TV</h3>
 
             <!-- First time login prompt -->
@@ -175,6 +175,7 @@ export default {
             resetPasswordMode: false,
             showMenu: false,
             parentHeightMobile: 0,
+            showAuthPrompt: false,
         };
     },
     computed: {
@@ -576,6 +577,11 @@ export default {
         setTimeout(() => {
             this.startAutoScroll();
         }, 2000); 
+
+        setTimeout(() => {
+            this.showAuthPrompt = true;
+        }, 10000); // 10000 milliseconds = 10 seconds
+        
     },
     beforeUnmount() {
         this.enableScrolling();
