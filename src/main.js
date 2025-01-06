@@ -1,10 +1,10 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-import { getMessaging, onMessage } from "firebase/messaging";
-import { initializeApp, setLogLevel } from "firebase/app";
-import { getToken, isSupported } from "firebase/messaging";
-setLogLevel("debug");
+// import { getMessaging, onMessage } from "firebase/messaging";
+// import { initializeApp, setLogLevel } from "firebase/app";
+// import { getToken, isSupported } from "firebase/messaging";
+// setLogLevel("debug");
 
 const app = createApp(App);
 app.use(router);
