@@ -537,14 +537,10 @@ export default {
         // this.disableScroll bing();
         this.calculateHeights();
         this.updateViewportHeight();
-        this.initializeTradingViewMiniChartWidgets();
-        
-        this.initializeTradingViewEventsWidget();
 
         // Preload clones
         // this.preloadClones();
 
-        this.startAutoScroll();
         window.addEventListener("resize", this.calculateHeights);
         this.$nextTick(() => {
             this.initializeRssWidget();
@@ -574,7 +570,12 @@ export default {
         this.$nextTick(() => {
             this.initializeTradingViewWidget();
             this.initializeTradingViewEventsWidget();
+            this.initializeTradingViewMiniChartWidgets();
         });
+
+        setTimeout(() => {
+            this.startAutoScroll();
+        }, 2000); 
     },
     beforeUnmount() {
         this.enableScrolling();
