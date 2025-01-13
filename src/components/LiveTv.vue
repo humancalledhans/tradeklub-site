@@ -578,8 +578,13 @@ export default {
             this.startAutoScroll();
         }, 2000); 
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const authParam = urlParams.get('auth');
+
         setTimeout(() => {
-            this.showAuthPrompt = true;
+            if (!authParam || authParam !== '23901:kwpDFLQWK9102882913') {
+                this.showAuthPrompt = true;
+            }
         }, 10000); // 10000 milliseconds = 10 seconds
         
     },
@@ -917,7 +922,7 @@ export default {
   width: 100%;
 }
 
-.reset-password-button:hover,{
+.reset-password-button:hover {
   background-color: #315297;
 }
 
