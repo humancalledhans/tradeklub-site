@@ -182,7 +182,7 @@ export default {
         liveStreamUrl() {
             // return `https://player.restream.io/?token=${this.liveStreamToken}`;
             // return `https://youtube.com/live/kYBSvbr5IXA?feature=share`;
-            return `https://www.youtube.com/embed/kYBSvbr5IXA?autoplay=1&controls=0&showinfo=0`;
+            return `https://www.youtube.com/embed/99xP-Cpe1z4?autoplay=1&controls=0&showinfo=0`;
 
         },
         widgetContainerDimensions() {
