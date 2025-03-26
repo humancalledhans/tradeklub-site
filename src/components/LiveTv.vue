@@ -53,13 +53,17 @@
                     </div>
                     <div class="tv-box-wrapper large" style="position:relative;">
                         <!-- Same 100ms meeting iframe for both admin and viewers -->
-                        <iframe 
+                        <!-- <iframe 
                             title="100ms-meeting"
                             allow="camera *;microphone *;display-capture *"
                             src="https://hans-livestream-2208.app.100ms.live/streaming/meeting/khi-ustv-qby"
                             style="position:absolute;top:0;left:0;width:100%;height:100%;"
                             frameborder="0"
-                        ></iframe>
+                        ></iframe> -->
+                        <BroadcasterView 
+                        role="viewer" 
+                        ref="liveStreamViewer" 
+                        />
                     </div>
                 </div>
                 <!-- Bottom Small Box (1/3 Height of First Column) -->
@@ -145,13 +149,15 @@
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import LiveStreamViewer from "./LiveStreamViewer.vue"; 
 import TabbedComponent from "./TabbedComponent.vue";
+import BroadcasterView from "./BroadcasterView.vue"
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
         LiveStreamViewer,
-        TabbedComponent
+        TabbedComponent,
+        BroadcasterView
     },
     data() {
         return {
