@@ -37,7 +37,7 @@
   
   <script>
   // NOTE that TabbedComponent is used for mobile.
-  import ChatComponent from "./ChatComponent.vue"; 
+  import ChatComponent from "./LiveStreamViewer.vue"; 
   export default {
     name: "TabbedComponent",
     components: {

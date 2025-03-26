@@ -52,13 +52,14 @@
                         Tradeklub Television
                     </div>
                     <div class="tv-box-wrapper large" style="position:relative;">
+                        <!-- Same 100ms meeting iframe for both admin and viewers -->
                         <iframe 
-                            :src="liveStreamUrl"
-                            allow="autoplay; fullscreen; microphone"
-                            allowfullscreen 
-                            frameborder="0" 
-                            style="position:absolute;top:0;left:0;width:100%;height:100%;">
-                        </iframe>
+                            title="100ms-meeting"
+                            allow="camera *;microphone *;display-capture *"
+                            src="https://hans-livestream-2208.app.100ms.live/streaming/meeting/khi-ustv-qby"
+                            style="position:absolute;top:0;left:0;width:100%;height:100%;"
+                            frameborder="0"
+                        ></iframe>
                     </div>
                 </div>
                 <!-- Bottom Small Box (1/3 Height of First Column) -->
@@ -84,11 +85,11 @@
                             </iframe>
                         </div>
                         <div class="right-half" ref="chatContainer">
-                            <ChatComponent 
+                            <LiveStreamViewer 
                             :width="parentWidth" 
                             :height="parentHeight" 
                             role="viewer" 
-                            ref="chatComponent" 
+                            ref="liveStreamViewer" 
                             />
                         </div>
                         </div>
@@ -142,14 +143,14 @@
 <script>
 // import LiveTVBox from "./LiveTVBox.vue";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import ChatComponent from "./ChatComponent.vue"; 
+import LiveStreamViewer from "./LiveStreamViewer.vue"; 
 import TabbedComponent from "./TabbedComponent.vue";
 
 export default {
     name: "LiveTv",
     components: {
         // LiveTVBox,
-        ChatComponent,
+        LiveStreamViewer,
         TabbedComponent
     },
     data() {
@@ -409,9 +410,9 @@ export default {
         },
         initializeRssWidget() {
             const iframe = this.$refs.rssWidgetIframe;
-            const chatComponent = this.$refs.chatComponent; 
+            const livestreamViewerComponent = this.$refs.liveStreamViewer; 
 
-            if (iframe && chatComponent) {
+            if (iframe && livestreamViewerComponent) {
                 // Get parent dimensions
                 const parentWidth = iframe.parentElement.offsetWidth;
                 const parentHeight = iframe.parentElement.offsetHeight;
@@ -420,8 +421,8 @@ export default {
                 iframe.style.width = `${parentWidth}px`;
                 iframe.style.height = `${parentHeight}px`;
 
-                this.chatComponentWidth = parentWidth;
-                this.chatComponentHeight = parentHeight;
+                this.livestreamViewerComponentWidth = parentWidth;
+                this.livestreamViewerComponentHeight = parentHeight;
 
                 // Ensure the iframe scales responsively
                 iframe.setAttribute("width", "100%");
@@ -810,7 +811,7 @@ export default {
 }
 
 .right-half {
-    overflow-y: auto; /* For ChatComponent, to manage overflow */
+    overflow-y: auto; /* For livestreamViewerComponent, to manage overflow */
 }
 
 .split-container {
@@ -827,7 +828,7 @@ export default {
 }
 
 /* Ensure ChatComponent fills its container but doesn't overflow */
-.right-half > ChatComponent {
+.right-half > LiveStreamViewer {
     width: 100%;
     height: 100%; /* Fill .right-half */
     overflow-y: auto; /* Allow scrolling when content overflows */
@@ -836,11 +837,11 @@ export default {
 }
 
 /* Ensure ChatComponent's internal scrollable area */
-.right-half > ChatComponent > .chat-wrapper {
+.right-half > LiveStreamViewer > .chat-wrapper {
     height: 100%; /* Fill the ChatComponent */
 }
 
-.right-half > ChatComponent > .chat-wrapper > .chat-window {
+.right-half > LiveStreamViewer > .chat-wrapper > .chat-window {
     height: 100%; /* Ensure the chat window takes up all available space */
     overflow-y: auto; /* Internal scrolling for messages */
 }
