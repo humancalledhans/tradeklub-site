@@ -30,7 +30,7 @@ import {
 } from '@100mslive/hms-video-store';
 
 export default {
-  name: 'BroadcasterView',
+  name: 'ViewerView',
   data() {
     return {
       userId: null,
@@ -38,7 +38,6 @@ export default {
       hasJoined: false,
       broadcasterPresent: false,
       screenSharePresent: false,
-      screenTrack: null,
       unsubscribeFunctions: [],
     };
   },
@@ -51,15 +50,6 @@ export default {
     this.unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
     if (this.hasJoined) hmsActions.leave();
   },
-  watch: {
-    screenSharePresent(newVal) {
-      if (newVal && this.screenTrack) {
-        this.$nextTick(() => {
-          this.attachScreenShare(this.screenTrack);
-        });
-      }
-    },
-  },
   methods: {
     async fetchAuthToken(userId) {
       try {
@@ -67,7 +57,7 @@ export default {
         const response = await fetch(BACKEND_URL + '/generate-100ms-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId }),
+          body: JSON.stringify({ user_id: userId, role: 'viewer-realtime' }),
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
@@ -90,7 +80,7 @@ export default {
       const config = {
         userName: this.userName,
         authToken: authData.token,
-        settings: { isAudioMuted: true, isVideoMuted: false },
+        settings: { isAudioMuted: true, isVideoMuted: true },
         role: 'viewer-realtime',
       };
       try {
@@ -101,27 +91,22 @@ export default {
         console.log('Joined room successfully');
 
         const peerHandler = (peers) => {
-          console.log('Peers updated:', JSON.stringify(peers, null, 2));
           const broadcaster = Object.values(peers || {}).find(peer =>
             peer.roleName === 'broadcaster' || peer.roleName === 'host' || peer.name === 'hans broadcaster'
           );
-          console.log('Broadcaster found:', JSON.stringify(broadcaster, null, 2));
           this.handleBroadcaster(broadcaster);
         };
         this.unsubscribeFunctions.push(hmsStore.subscribe(peerHandler, selectPeers));
 
         const screenShareHandler = (screensharingPeers) => {
-          console.log('Screensharing peers:', JSON.stringify(screensharingPeers, null, 2));
           const presenter = screensharingPeers.find(peer =>
             peer.roleName === 'broadcaster' || peer.roleName === 'host' || peer.name === 'hans broadcaster'
           );
-          console.log('Presenter:', JSON.stringify(presenter, null, 2));
           this.handleScreenShare(presenter);
         };
         this.unsubscribeFunctions.push(hmsStore.subscribe(screenShareHandler, selectPeersScreenSharing));
 
         const initialState = hmsStore.getState();
-        console.log('Initial Full State:', JSON.stringify(initialState, null, 2));
         peerHandler(initialState.peers);
         screenShareHandler(initialState.peers ? selectPeersScreenSharing(initialState) : []);
       } catch (error) {
@@ -135,21 +120,16 @@ export default {
         if (this.$refs.broadcasterVideo) hmsActions.detachVideo(broadcaster?.videoTrack, this.$refs.broadcasterVideo);
         return;
       }
-
-      console.log('Attaching broadcaster video track:', broadcaster.videoTrack);
       this.$nextTick(() => {
         const videoEl = this.$refs.broadcasterVideo;
         if (videoEl) {
           try {
             hmsActions.attachVideo(broadcaster.videoTrack, videoEl);
-            console.log('Broadcaster video attached successfully');
             this.broadcasterPresent = true;
           } catch (error) {
             console.error('Error attaching broadcaster video:', error);
             this.broadcasterPresent = false;
           }
-        } else {
-          console.error('Broadcaster video element not found');
         }
       });
     },
@@ -157,53 +137,38 @@ export default {
       if (!presenter) {
         console.log('No presenter found for screen share');
         this.screenSharePresent = false;
-        this.screenTrack = null;
         if (this.$refs.screenShareVideo) hmsActions.detachVideo(null, this.$refs.screenShareVideo);
         return;
       }
-
       let screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
-      console.log('Screen Share Track from selector:', JSON.stringify(screenTrack, null, 2));
-
       if (!screenTrack && presenter.auxiliaryTracks?.length) {
-        console.log('Falling back to auxiliaryTracks');
         const auxiliaryTrackId = presenter.auxiliaryTracks[0];
         const allTracks = hmsStore.getState().tracks || {};
         screenTrack = Object.values(allTracks).find(t => t.id === auxiliaryTrackId);
-        console.log('Fallback Screen Track:', JSON.stringify(screenTrack, null, 2));
       }
-
       if (!screenTrack) {
-        console.log('No screen share track found');
         this.screenSharePresent = false;
-        this.screenTrack = null;
         if (this.$refs.screenShareVideo) hmsActions.detachVideo(null, this.$refs.screenShareVideo);
         return;
       }
-
-      console.log('Screen track detected, setting present');
-      this.screenTrack = screenTrack;
+      console.log('Screen track state:', screenTrack.readyState, 'enabled:', screenTrack.enabled);
       this.screenSharePresent = true;
-    },
-    attachScreenShare(screenTrack) {
-      console.log('Attaching screen share track:', JSON.stringify(screenTrack, null, 2));
-      const videoEl = this.$refs.screenShareVideo;
-      if (videoEl) {
-        try {
-          hmsActions.attachVideo(screenTrack, videoEl);
-          console.log('Screen share attached successfully');
-          console.log('Track enabled:', screenTrack.enabled);
-          console.log('Video element srcObject:', videoEl.srcObject);
-          console.log('MediaStream tracks:', videoEl.srcObject?.getTracks());
-          videoEl.play().catch(error => console.error('Play error:', error));
-        } catch (error) {
-          console.error('Error attaching screen share:', error);
-          this.screenSharePresent = false;
+      this.$nextTick(() => {
+        const videoEl = this.$refs.screenShareVideo;
+        if (videoEl) {
+          try {
+            hmsActions.attachVideo(screenTrack, videoEl);
+            console.log('Screen share attached, srcObject:', videoEl.srcObject);
+            videoEl.play().catch(error => console.error('Play error:', error));
+            console.log('Screen share attached successfully');
+          } catch (error) {
+            console.error('Error attaching screen share:', error);
+            this.screenSharePresent = false;
+          }
+        } else {
+          console.error('Screen share video element still not found after $nextTick');
         }
-      } else {
-        console.error('Screen share video element not found after $nextTick');
-        console.log('Refs:', this.$refs);
-      }
+      });
     },
   },
 };
