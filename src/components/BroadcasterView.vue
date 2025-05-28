@@ -12,6 +12,9 @@
       <button @click="debugVideoElements" style="position: absolute; top: 10px; right: 120px; z-index: 1000;">
         Debug Videos
       </button>
+      <button @click="compareTrackAttachment" style="position: absolute; top: 170px; right: 10px; z-index: 1000;">
+        Compare Tracks
+      </button>
       
       <video ref="broadcasterVideo" autoplay playsinline muted class="broadcaster-video"></video>
       <video
@@ -241,6 +244,76 @@ export default {
         }
       } catch (error) {
         console.error('Track refresh failed:', error);
+      }
+    },
+    compareTrackAttachment() {
+      console.log('=== TRACK ATTACHMENT COMPARISON ===');
+      
+      const hmsState = hmsStore.getState();
+      
+      // Get the working broadcaster video track
+      const workingVideoTrack = Object.values(hmsState.tracks).find(track => 
+        track.source === 'regular' && 
+        track.type === 'video' && 
+        track.displayEnabled === true &&
+        track.enabled === true
+      );
+      
+      // Get the screen share track
+      const screenTrack = Object.values(hmsState.tracks).find(track => 
+        track.source === 'screen' && 
+        track.type === 'video'
+      );
+      
+      console.log('Working video track:', workingVideoTrack);
+      console.log('Screen share track:', screenTrack);
+      
+      // Compare their properties
+      if (workingVideoTrack && screenTrack) {
+        const workingProps = Object.keys(workingVideoTrack).sort();
+        const screenProps = Object.keys(screenTrack).sort();
+        
+        console.log('Working track properties:', workingProps);
+        console.log('Screen track properties:', screenProps);
+        
+        // Find differences
+        const missingInScreen = workingProps.filter(prop => !screenProps.includes(prop));
+        const extraInScreen = screenProps.filter(prop => !workingProps.includes(prop));
+        
+        console.log('Properties missing in screen track:', missingInScreen);
+        console.log('Extra properties in screen track:', extraInScreen);
+        
+        // Test attachment of both
+        const videoEl = this.$refs.screenShareVideo;
+        if (videoEl) {
+          console.log('Testing working track attachment...');
+          try {
+            hmsActions.attachVideo(workingVideoTrack, videoEl);
+            setTimeout(() => {
+              console.log('Working track attachment result:', {
+                hasSrcObject: !!videoEl.srcObject,
+                videoWidth: videoEl.videoWidth,
+                videoHeight: videoEl.videoHeight
+              });
+              
+              // Now try screen track
+              console.log('Testing screen track attachment...');
+              videoEl.srcObject = null; // Clear first
+              
+              hmsActions.attachVideo(screenTrack, videoEl);
+              setTimeout(() => {
+                console.log('Screen track attachment result:', {
+                  hasSrcObject: !!videoEl.srcObject,
+                  videoWidth: videoEl.videoWidth,
+                  videoHeight: videoEl.videoHeight
+                });
+              }, 2000);
+              
+            }, 2000);
+          } catch (error) {
+            console.error('Track attachment test failed:', error);
+          }
+        }
       }
     },
     async directWebRTCAttachment(peerId, videoEl) {
