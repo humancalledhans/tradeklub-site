@@ -248,7 +248,7 @@ export default {
       // Method 3: Brute force search for ANY screen track from this peer
       if (!screenTrack) {
         console.log('Method 3 - Brute force search through all tracks');
-        Object.values(hmsState.tracks).forEach((track, index) => {
+        Object.values(hmsState.tracks).forEach((track) => {
           if (track.peerId === presenter.id && track.source === 'screen') {
             console.log(`Found screen track via brute force search:`, track);
             screenTrack = track;
