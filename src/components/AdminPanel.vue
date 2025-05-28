@@ -14,10 +14,11 @@
         <!-- 100ms meeting iframe -->
         <iframe
           title="100ms-meeting"
-          allow="camera *;microphone *;display-capture *"
+          allow="camera *; microphone *; display-capture *; autoplay *; clipboard-write *"
           src="https://hans-videoconf-1131.app.100ms.live/meeting/nwr-getw-oww"
           style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
           frameborder="0"
+          allowfullscreen
         ></iframe>
       </div>
       <!-- <p>Welcome, Admin!</p> -->
