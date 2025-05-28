@@ -234,7 +234,7 @@ export default {
           console.log('Track exists in store, forcing refresh...');
           
           // Try to re-subscribe to track updates
-          const unsubscribe = hmsStore.subscribe((tracks) => {
+          const unsubscribe = hmsStore.subscribe(() => {
             console.log('Track update received');
             unsubscribe();
           }, (state) => state.tracks);
@@ -316,13 +316,12 @@ export default {
         }
       }
     },
-    async directWebRTCAttachment(peerId, videoEl) {
+    async directWebRTCAttachment(peerId) {
       console.log('Attempting direct WebRTC attachment for peer:', peerId);
       
       // This is a bit of a hack, but let's see if we can access the peer connection directly
       try {
         // Check if HMS exposes any peer connection internals
-        const state = hmsStore.getState();
         console.log('Checking for peer connection internals...');
         
         // Look for any internal HMS objects that might have the MediaStream
