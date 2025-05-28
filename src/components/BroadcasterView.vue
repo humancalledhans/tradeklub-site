@@ -36,6 +36,9 @@
       <button @click="testMainVideoAttachment" style="position: absolute; top: 90px; right: 10px; z-index: 1000;">
         Test Main Video
       </button>
+      <button @click="tryDirectTrackExtraction" style="position: absolute; top: 130px; right: 10px; z-index: 1000;">
+        Try Direct Track
+      </button>
     </div>
   </div>
 </template>
@@ -588,7 +591,146 @@ export default {
         }
       });
     },
+    tryDirectTrackExtraction() {
+      console.log('=== DIRECT TRACK EXTRACTION ===');
+      
+      // Step 1: Get the working MediaStream from broadcaster video
+      const workingVideos = document.querySelectorAll('video');
+      let workingStream = null;
+      
+      workingVideos.forEach((video, index) => {
+        if (video.srcObject && video.videoWidth > 0) {
+          console.log(`Found working video ${index}:`, {
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            className: video.className
+          });
+          
+          workingStream = video.srcObject;
+          console.log('Working stream tracks:', workingStream.getTracks());
+        }
+      });
+      
+      if (!workingStream) {
+        console.log('❌ No working stream found');
+        return;
+      }
+      
+      // Step 2: Look for screen share track in the working stream
+      const tracks = workingStream.getTracks();
+      const screenTrack = tracks.find(track => 
+        track.label && (
+          track.label.includes('screen') || 
+          track.label.includes('Screen') ||
+          track.label.includes('display')
+        )
+      );
+      
+      console.log('All tracks in working stream:', tracks.map(t => ({
+        kind: t.kind,
+        label: t.label,
+        id: t.id
+      })));
+      
+      if (screenTrack) {
+        console.log('✅ Found screen track:', screenTrack.label);
+        
+        // Step 3: Create new MediaStream with screen track
+        const screenStream = new MediaStream([screenTrack]);
+        const mainVideo = this.$refs.mainVideo;
+        
+        if (mainVideo) {
+          console.log('Attempting direct stream assignment...');
+          mainVideo.srcObject = screenStream;
+          
+          setTimeout(() => {
+            console.log('After direct assignment:', {
+              hasSrcObject: !!mainVideo.srcObject,
+              videoWidth: mainVideo.videoWidth,
+              videoHeight: mainVideo.videoHeight,
+              readyState: mainVideo.readyState
+            });
+            
+            if (mainVideo.readyState >= 2) {
+              console.log('✅ Direct assignment worked!');
+              mainVideo.play().catch(e => console.error('Play error:', e));
+            }
+          }, 2000);
+        }
+      } else {
+        console.log('❌ No screen track found in working stream');
+        console.log('This might mean screen sharing is in a separate stream');
+        
+        // Step 4: Try to find screen sharing peer connection directly
+        this.tryPeerConnectionAccess();
+      }
+    },
 
+    // Add this method to try accessing peer connections
+    tryPeerConnectionAccess() {
+      console.log('=== PEER CONNECTION ACCESS ===');
+      
+      // Check if we can access WebRTC peer connections
+      if (window.RTCPeerConnection) {
+        console.log('RTCPeerConnection available');
+        
+        // Try to find active peer connections (this is a bit hacky)
+        // Modern browsers might have restrictions, but let's try
+        
+        // Check if HMS exposes any internal peer connection objects
+        const hmsState = hmsStore.getState();
+        console.log('HMS State room info:', hmsState.room);
+        
+        // Look for any WebRTC-related objects in the global scope
+        Object.keys(window).forEach(key => {
+          if (key.toLowerCase().includes('webrtc') || 
+              key.toLowerCase().includes('peer') ||
+              key.toLowerCase().includes('rtc')) {
+            console.log(`Found potential WebRTC object: ${key}`, window[key]);
+          }
+        });
+      }
+      
+      // Alternative: Try to trigger HMS to refresh its track management
+      console.log('Attempting HMS track refresh...');
+      try {
+        // Force HMS to re-evaluate tracks
+        const screenTrack = Object.values(hmsStore.getState().tracks).find(track => 
+          track.source === 'screen' && track.type === 'video'
+        );
+        
+        if (screenTrack) {
+          // Try detaching from all elements first
+          const allVideos = document.querySelectorAll('video');
+          allVideos.forEach(video => {
+            if (video.srcObject) {
+              console.log('Detaching from video:', video.className);
+              hmsActions.detachVideo(screenTrack, video);
+            }
+          });
+          
+          // Wait and try fresh attachment
+          setTimeout(() => {
+            const mainVideo = this.$refs.mainVideo;
+            if (mainVideo) {
+              console.log('Trying fresh attachment after detach...');
+              hmsActions.attachVideo(screenTrack, mainVideo);
+              
+              setTimeout(() => {
+                console.log('After fresh attachment:', {
+                  hasSrcObject: !!mainVideo.srcObject,
+                  videoWidth: mainVideo.videoWidth,
+                  videoHeight: mainVideo.videoHeight
+                });
+              }, 2000);
+            }
+          }, 1000);
+        }
+        
+      } catch (error) {
+        console.error('HMS refresh attempt failed:', error);
+      }
+    },
     // Add this alternative attachment method
     tryAlternativeAttachment(screenTrack, videoEl) {
       console.log('=== ALTERNATIVE ATTACHMENT ===');
