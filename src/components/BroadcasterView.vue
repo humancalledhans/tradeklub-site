@@ -61,6 +61,7 @@ export default {
     }
   },
   async mounted() {
+    this.debugHMSMethods();
     this.userId = localStorage.getItem('user_id') || (window.crypto?.randomUUID?.() || 'viewer-' + Math.random().toString(36).substr(2, 9));
     localStorage.setItem('user_id', this.userId);
     if (this.userName.trim()) await this.joinRoom();
@@ -202,119 +203,162 @@ export default {
       );
       console.log('All screen tracks:', screenTracks);
     },
+    debugHMSMethods() {
+      console.log('=== HMS METHODS DEBUG ===');
+      console.log('hmsActions methods:', Object.getOwnPropertyNames(hmsActions));
+      console.log('hmsStore methods:', Object.getOwnPropertyNames(hmsStore));
+      
+      // Check if there are alternative methods for video attachment
+      if (hmsActions.setVideoElement) console.log('hmsActions.setVideoElement exists');
+      if (hmsActions.getVideoTrack) console.log('hmsActions.getVideoTrack exists');
+      if (hmsActions.bindVideo) console.log('hmsActions.bindVideo exists');
+    },
     handleScreenShare(presenter) {
-      console.log('=== HANDLE SCREEN SHARE DETAILED DEBUG ===');
-      console.log('Presenter object:', {
-        id: presenter?.id,
-        name: presenter?.name,
-        roleName: presenter?.roleName,
-        auxiliaryTracks: presenter?.auxiliaryTracks,
-        videoTrack: presenter?.videoTrack,
-        audioTrack: presenter?.audioTrack
-      });
+      console.log('=== VUE HMS SCREEN SHARE DEBUG ===');
+      console.log('Presenter:', presenter);
       
       if (!presenter) {
-        console.log('No presenter found for screen share');
         this.screenSharePresent = false;
-        if (this.$refs.screenShareVideo) {
-          this.$refs.screenShareVideo.srcObject = null;
-        }
         return;
       }
 
-      // Get the screen track
-      let screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
-      console.log('Screen track from selector:', screenTrack);
+      // Get the full HMS state
+      const hmsState = hmsStore.getState();
+      console.log('Full HMS State keys:', Object.keys(hmsState));
       
-      // Log the full screen track object
-      if (screenTrack) {
-        console.log('Full screen track object:', {
-          ...screenTrack,
-          nativeTrack: screenTrack.nativeTrack,
-          hasNativeTrack: !!screenTrack.nativeTrack
-        });
+      // Method 1: Standard selector
+      let screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
+      console.log('Method 1 - selectScreenShareByPeerID result:', screenTrack);
+      
+      // Method 2: Direct auxiliary track access
+      if (presenter.auxiliaryTracks?.length) {
+        console.log('Presenter auxiliary tracks:', presenter.auxiliaryTracks);
         
-        // If there's a nativeTrack, log its details
-        if (screenTrack.nativeTrack) {
-          console.log('Native track details:', {
-            kind: screenTrack.nativeTrack.kind,
-            label: screenTrack.nativeTrack.label,
-            enabled: screenTrack.nativeTrack.enabled,
-            readyState: screenTrack.nativeTrack.readyState,
-            muted: screenTrack.nativeTrack.muted
-          });
-        } else {
-          console.log('❌ NO NATIVE TRACK FOUND - This is the problem!');
-        }
+        presenter.auxiliaryTracks.forEach((trackId, index) => {
+          const auxTrack = hmsState.tracks[trackId];
+          console.log(`Auxiliary track ${index} (${trackId}):`, auxTrack);
+          
+          if (auxTrack && auxTrack.source === 'screen') {
+            screenTrack = auxTrack;
+            console.log('Using auxiliary track as screen track');
+          }
+        });
       }
-
-      if (screenTrack) {
-        console.log('All screen track properties:', Object.keys(screenTrack));
-        console.log('Looking for native track in different properties:');
-        console.log('- nativeTrack:', screenTrack.nativeTrack);
-        console.log('- track:', screenTrack.track);
-        console.log('- mediaStreamTrack:', screenTrack.mediaStreamTrack);
-        console.log('- _nativeTrack:', screenTrack._nativeTrack);
-      }
-
+      
+      // Method 3: Brute force search for ANY screen track from this peer
       if (!screenTrack) {
-        console.log('No screen track found');
+        console.log('Method 3 - Brute force search through all tracks');
+        Object.values(hmsState.tracks).forEach((track, index) => {
+          if (track.peerId === presenter.id && track.source === 'screen') {
+            console.log(`Found screen track via brute force search:`, track);
+            screenTrack = track;
+          }
+        });
+      }
+      
+      if (!screenTrack) {
+        console.log('❌ No screen track found with any method');
         this.screenSharePresent = false;
         return;
       }
-
+      
+      console.log('=== SCREEN TRACK ANALYSIS ===');
+      console.log('Screen track ID:', screenTrack.id);
+      console.log('Screen track full object:', screenTrack);
+      console.log('All screen track properties:', Object.keys(screenTrack));
+      
+      // Look for the actual MediaStreamTrack in various possible locations
+      const trackSources = [
+        'nativeTrack',
+        'track', 
+        '_track',
+        'mediaStreamTrack',
+        '_mediaStreamTrack',
+        'stream',
+        '_stream',
+        'videoTrack',
+        '_videoTrack'
+      ];
+      
+      let foundMediaTrack = null;
+      trackSources.forEach(prop => {
+        if (screenTrack[prop]) {
+          console.log(`Found ${prop}:`, screenTrack[prop]);
+          if (screenTrack[prop] && typeof screenTrack[prop] === 'object') {
+            // Check if it looks like a MediaStreamTrack
+            if (screenTrack[prop].kind || screenTrack[prop].getTracks) {
+              foundMediaTrack = screenTrack[prop];
+              console.log(`✅ ${prop} looks like a MediaStreamTrack!`);
+            }
+          }
+        }
+      });
+      
       this.screenSharePresent = true;
       
       this.$nextTick(() => {
         const videoEl = this.$refs.screenShareVideo;
-        console.log('Video element ready:', !!videoEl);
+        if (!videoEl) {
+          console.error('Video element not found');
+          return;
+        }
         
-        if (videoEl) {
-          try {
-            console.log('Attempting attachVideo with track:', screenTrack.id);
+        console.log('=== ATTACHMENT ATTEMPTS ===');
+        
+        // Attempt 1: Standard HMS attachVideo
+        try {
+          console.log('Attempt 1: Standard hmsActions.attachVideo');
+          hmsActions.attachVideo(screenTrack, videoEl);
+          
+          setTimeout(() => {
+            console.log('After standard attachment:', {
+              hasSrcObject: !!videoEl.srcObject,
+              videoWidth: videoEl.videoWidth,
+              videoHeight: videoEl.videoHeight,
+              readyState: videoEl.readyState
+            });
             
-            // Try the 100ms attachVideo method
-            hmsActions.attachVideo(screenTrack, videoEl);
-            console.log('attachVideo called successfully');
+            if (videoEl.srcObject) {
+              console.log('✅ Standard attachment worked!');
+              videoEl.play().catch(e => console.error('Play error:', e));
+              return;
+            }
             
-            // Check immediately after attachment
-            setTimeout(() => {
-              console.log('Video element after attachment:', {
-                srcObject: videoEl.srcObject,
-                videoWidth: videoEl.videoWidth,
-                videoHeight: videoEl.videoHeight,
-                readyState: videoEl.readyState,
-                hasSrcObject: !!videoEl.srcObject
-              });
-              
-              // If no srcObject, the attachment failed
-              if (!videoEl.srcObject) {
-                console.log('❌ Attachment failed - no srcObject set');
-                
-                // Try manual attachment if nativeTrack exists
-                if (screenTrack.nativeTrack) {
-                  console.log('Trying manual MediaStream creation...');
-                  try {
-                    const stream = new MediaStream([screenTrack.nativeTrack]);
-                    videoEl.srcObject = stream;
-                    console.log('Manual stream attached:', stream.getTracks().length, 'tracks');
-                    videoEl.play().catch(e => console.error('Manual play error:', e));
-                  } catch (manualError) {
-                    console.error('Manual attachment failed:', manualError);
-                  }
-                } else {
-                  console.log('❌ Cannot do manual attachment - no nativeTrack');
+            // Attempt 2: Manual attachment if we found a MediaStreamTrack
+            if (foundMediaTrack) {
+              console.log('Attempt 2: Manual MediaStream creation');
+              try {
+                let stream;
+                if (foundMediaTrack.getTracks) {
+                  // It's already a MediaStream
+                  stream = foundMediaTrack;
+                } else if (foundMediaTrack.kind) {
+                  // It's a MediaStreamTrack
+                  stream = new MediaStream([foundMediaTrack]);
                 }
-              } else {
-                console.log('✅ Attachment successful - srcObject exists');
-                videoEl.play().catch(e => console.error('Play error:', e));
+                
+                if (stream) {
+                  videoEl.srcObject = stream;
+                  console.log('Manual stream set, tracks:', stream.getTracks().length);
+                  videoEl.play().catch(e => console.error('Manual play error:', e));
+                  
+                  setTimeout(() => {
+                    console.log('After manual attachment:', {
+                      videoWidth: videoEl.videoWidth,
+                      videoHeight: videoEl.videoHeight,
+                      readyState: videoEl.readyState
+                    });
+                  }, 1000);
+                }
+              } catch (manualError) {
+                console.error('Manual attachment failed:', manualError);
               }
-            }, 500);
+            }
             
-          } catch (error) {
-            console.error('Error in attachVideo:', error);
-            this.screenSharePresent = false;
-          }
+          }, 2000);
+          
+        } catch (error) {
+          console.error('Standard attachment failed:', error);
         }
       });
     },
