@@ -206,159 +206,184 @@ export default {
     debugHMSMethods() {
       console.log('=== HMS METHODS DEBUG ===');
       console.log('hmsActions methods:', Object.getOwnPropertyNames(hmsActions));
-      console.log('hmsStore methods:', Object.getOwnPropertyNames(hmsStore));
+      console.log('hmsStore available methods:', Object.getOwnPropertyNames(hmsStore));
       
-      // Check if there are alternative methods for video attachment
-      if (hmsActions.setVideoElement) console.log('hmsActions.setVideoElement exists');
-      if (hmsActions.getVideoTrack) console.log('hmsActions.getVideoTrack exists');
-      if (hmsActions.bindVideo) console.log('hmsActions.bindVideo exists');
+      // Check for refresh/reconnect methods
+      if (hmsActions.refreshTrack) console.log('✅ hmsActions.refreshTrack exists');
+      if (hmsActions.reconnect) console.log('✅ hmsActions.reconnect exists');
+      if (hmsActions.getVideoElement) console.log('✅ hmsActions.getVideoElement exists');
+      if (hmsActions.detachVideo) console.log('✅ hmsActions.detachVideo exists');
+      
+      // Check store methods
+      if (hmsStore.getActions) console.log('✅ hmsStore.getActions exists');
+      if (hmsStore.triggerOnSubscribe) console.log('✅ hmsStore.triggerOnSubscribe exists');
     },
-    handleScreenShare(presenter) {
-      console.log('=== VUE HMS SCREEN SHARE DEBUG ===');
-      console.log('Presenter:', presenter);
+    async refreshTrackInStore(trackId) {
+      console.log('Attempting to refresh track in store:', trackId);
+      
+      // Try to trigger a track update by accessing HMS internals
+      try {
+        const state = hmsStore.getState();
+        const track = state.tracks[trackId];
+        
+        if (track) {
+          // Force a re-evaluation of the track
+          console.log('Track exists in store, forcing refresh...');
+          
+          // Try to re-subscribe to track updates
+          const unsubscribe = hmsStore.subscribe((tracks) => {
+            console.log('Track update received');
+            unsubscribe();
+          }, (state) => state.tracks);
+          
+          // Trigger a state update
+          setTimeout(unsubscribe, 100);
+        }
+      } catch (error) {
+        console.error('Track refresh failed:', error);
+      }
+    },
+    async directWebRTCAttachment(peerId, videoEl) {
+      console.log('Attempting direct WebRTC attachment for peer:', peerId);
+      
+      // This is a bit of a hack, but let's see if we can access the peer connection directly
+      try {
+        // Check if HMS exposes any peer connection internals
+        const state = hmsStore.getState();
+        console.log('Checking for peer connection internals...');
+        
+        // Look for any internal HMS objects that might have the MediaStream
+        if (window.hmsSDK || window.HMS) {
+          console.log('Found HMS SDK in window, checking for streams...');
+          // Try to access internal streams
+        }
+        
+        // Alternative: Try to find the stream via WebRTC stats
+        if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+          console.log('Display media available, but cannot hijack existing stream');
+        }
+        
+        // Last resort: Try to trigger a complete re-render
+        console.log('Triggering component re-render...');
+        this.screenSharePresent = false;
+        await this.$nextTick();
+        
+        setTimeout(() => {
+          this.screenSharePresent = true;
+          this.$nextTick(() => {
+            const freshTrack = hmsStore.getState(selectScreenShareByPeerID(peerId));
+            if (freshTrack) {
+              hmsActions.attachVideo(freshTrack, this.$refs.screenShareVideo);
+            }
+          });
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Direct WebRTC attachment failed:', error);
+        throw error;
+      }
+    },
+    async handleScreenShare(presenter) {
+      console.log('=== ENHANCED SCREEN SHARE HANDLER ===');
       
       if (!presenter) {
         this.screenSharePresent = false;
         return;
       }
 
-      // Get the full HMS state
-      const hmsState = hmsStore.getState();
-      console.log('Full HMS State keys:', Object.keys(hmsState));
+      console.log('Presenter ID:', presenter.id);
       
-      // Method 1: Standard selector
-      let screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
-      console.log('Method 1 - selectScreenShareByPeerID result:', screenTrack);
-      
-      // Method 2: Direct auxiliary track access
-      if (presenter.auxiliaryTracks?.length) {
-        console.log('Presenter auxiliary tracks:', presenter.auxiliaryTracks);
-        
-        presenter.auxiliaryTracks.forEach((trackId, index) => {
-          const auxTrack = hmsState.tracks[trackId];
-          console.log(`Auxiliary track ${index} (${trackId}):`, auxTrack);
+      // Step 1: Wait for track to be fully ready
+      const waitForTrack = async (maxAttempts = 10) => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          console.log(`Track ready check - Attempt ${attempt}/${maxAttempts}`);
           
-          if (auxTrack && auxTrack.source === 'screen') {
-            screenTrack = auxTrack;
-            console.log('Using auxiliary track as screen track');
+          const screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
+          
+          if (screenTrack) {
+            console.log(`Found track on attempt ${attempt}:`, screenTrack.id);
+            
+            // Force a refresh of the track by re-subscribing
+            try {
+              // Try to refresh the track in the store
+              await this.refreshTrackInStore(screenTrack.id);
+              
+              // Get the refreshed track
+              const refreshedTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
+              console.log('Refreshed track:', refreshedTrack);
+              
+              return refreshedTrack;
+            } catch (error) {
+              console.log(`Refresh attempt ${attempt} failed:`, error);
+            }
           }
-        });
-      }
-      
-      // Method 3: Brute force search for ANY screen track from this peer
-      if (!screenTrack) {
-        console.log('Method 3 - Brute force search through all tracks');
-        Object.values(hmsState.tracks).forEach((track) => {
-          if (track.peerId === presenter.id && track.source === 'screen') {
-            console.log(`Found screen track via brute force search:`, track);
-            screenTrack = track;
-          }
-        });
-      }
+          
+          // Wait before next attempt
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        return null;
+      };
+
+      const screenTrack = await waitForTrack();
       
       if (!screenTrack) {
-        console.log('❌ No screen track found with any method');
+        console.log('❌ No screen track found after all attempts');
         this.screenSharePresent = false;
         return;
       }
-      
-      console.log('=== SCREEN TRACK ANALYSIS ===');
-      console.log('Screen track ID:', screenTrack.id);
-      console.log('Screen track full object:', screenTrack);
-      console.log('All screen track properties:', Object.keys(screenTrack));
-      
-      // Look for the actual MediaStreamTrack in various possible locations
-      const trackSources = [
-        'nativeTrack',
-        'track', 
-        '_track',
-        'mediaStreamTrack',
-        '_mediaStreamTrack',
-        'stream',
-        '_stream',
-        'videoTrack',
-        '_videoTrack'
-      ];
-      
-      let foundMediaTrack = null;
-      trackSources.forEach(prop => {
-        if (screenTrack[prop]) {
-          console.log(`Found ${prop}:`, screenTrack[prop]);
-          if (screenTrack[prop] && typeof screenTrack[prop] === 'object') {
-            // Check if it looks like a MediaStreamTrack
-            if (screenTrack[prop].kind || screenTrack[prop].getTracks) {
-              foundMediaTrack = screenTrack[prop];
-              console.log(`✅ ${prop} looks like a MediaStreamTrack!`);
-            }
-          }
-        }
-      });
-      
+
+      console.log('Using screen track:', screenTrack.id);
       this.screenSharePresent = true;
-      
-      this.$nextTick(() => {
+
+      // Step 2: Enhanced video attachment
+      this.$nextTick(async () => {
         const videoEl = this.$refs.screenShareVideo;
         if (!videoEl) {
           console.error('Video element not found');
           return;
         }
-        
-        console.log('=== ATTACHMENT ATTEMPTS ===');
-        
-        // Attempt 1: Standard HMS attachVideo
-        try {
-          console.log('Attempt 1: Standard hmsActions.attachVideo');
-          hmsActions.attachVideo(screenTrack, videoEl);
-          
-          setTimeout(() => {
-            console.log('After standard attachment:', {
+
+        console.log('Starting attachment attempts...');
+
+        // Method 1: Standard HMS attachment with retry
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          try {
+            console.log(`HMS attachment attempt ${attempt}/5`);
+            
+            // Clear any existing srcObject
+            videoEl.srcObject = null;
+            
+            // Try HMS attachVideo
+            hmsActions.attachVideo(screenTrack, videoEl);
+            
+            // Wait for attachment
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            console.log(`After attempt ${attempt}:`, {
               hasSrcObject: !!videoEl.srcObject,
               videoWidth: videoEl.videoWidth,
               videoHeight: videoEl.videoHeight,
               readyState: videoEl.readyState
             });
             
-            if (videoEl.srcObject) {
-              console.log('✅ Standard attachment worked!');
-              videoEl.play().catch(e => console.error('Play error:', e));
+            if (videoEl.srcObject && videoEl.videoWidth > 0) {
+              console.log(`✅ HMS attachment succeeded on attempt ${attempt}`);
+              await videoEl.play().catch(e => console.error('Play error:', e));
               return;
             }
             
-            // Attempt 2: Manual attachment if we found a MediaStreamTrack
-            if (foundMediaTrack) {
-              console.log('Attempt 2: Manual MediaStream creation');
-              try {
-                let stream;
-                if (foundMediaTrack.getTracks) {
-                  // It's already a MediaStream
-                  stream = foundMediaTrack;
-                } else if (foundMediaTrack.kind) {
-                  // It's a MediaStreamTrack
-                  stream = new MediaStream([foundMediaTrack]);
-                }
-                
-                if (stream) {
-                  videoEl.srcObject = stream;
-                  console.log('Manual stream set, tracks:', stream.getTracks().length);
-                  videoEl.play().catch(e => console.error('Manual play error:', e));
-                  
-                  setTimeout(() => {
-                    console.log('After manual attachment:', {
-                      videoWidth: videoEl.videoWidth,
-                      videoHeight: videoEl.videoHeight,
-                      readyState: videoEl.readyState
-                    });
-                  }, 1000);
-                }
-              } catch (manualError) {
-                console.error('Manual attachment failed:', manualError);
-              }
-            }
-            
-          }, 2000);
-          
+          } catch (error) {
+            console.error(`HMS attachment attempt ${attempt} failed:`, error);
+          }
+        }
+
+        // Method 2: Direct WebRTC approach (bypass HMS)
+        console.log('HMS attachment failed, trying direct WebRTC approach...');
+        try {
+          await this.directWebRTCAttachment(presenter.id, videoEl);
         } catch (error) {
-          console.error('Standard attachment failed:', error);
+          console.error('Direct WebRTC approach failed:', error);
+          this.screenSharePresent = false;
         }
       });
     },
