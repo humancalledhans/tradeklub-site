@@ -5,6 +5,11 @@
       <button @click="joinRoom" :disabled="!userName.trim()">Join Room</button>
     </div>
     <div v-if="hasJoined" class="video-section">
+
+      <button @click="debugVideoElements" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+        Debug Videos
+      </button>
+      
       <video ref="broadcasterVideo" autoplay playsinline muted class="broadcaster-video"></video>
       <video
         v-if="screenSharePresent"
@@ -41,6 +46,17 @@ export default {
       unsubscribeFunctions: [],
     };
   },
+  watch: {
+    screenSharePresent(newVal, oldVal) {
+      console.log('screenSharePresent changed:', oldVal, '->', newVal);
+      if (newVal) {
+        // Debug when screen share becomes present
+        setTimeout(() => {
+          this.debugVideoElements();
+        }, 2000);
+      }
+    }
+  },
   async mounted() {
     this.userId = localStorage.getItem('user_id') || (window.crypto?.randomUUID?.() || 'viewer-' + Math.random().toString(36).substr(2, 9));
     localStorage.setItem('user_id', this.userId);
@@ -51,6 +67,37 @@ export default {
     if (this.hasJoined) hmsActions.leave();
   },
   methods: {
+    debugVideoElements() {
+      console.log('=== VIDEO DEBUGGING ===');
+      const videos = document.querySelectorAll('video');
+      console.log('Total video elements found:', videos.length);
+
+      videos.forEach((video, index) => {
+        console.log(`Video ${index}:`, {
+          src: video.src,
+          srcObject: video.srcObject,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          readyState: video.readyState,
+          paused: video.paused,
+          muted: video.muted,
+          style: video.style.cssText,
+          classList: Array.from(video.classList),
+          tracks: video.srcObject ? video.srcObject.getTracks().map(track => ({
+            kind: track.kind,
+            label: track.label,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState
+          })) : 'No srcObject'
+        });
+      });
+
+      // Also check your specific video refs
+      console.log('Broadcaster video ref:', this.$refs.broadcasterVideo);
+      console.log('Screen share video ref:', this.$refs.screenShareVideo);
+      console.log('Screen share present flag:', this.screenSharePresent);
+    },
     async fetchAuthToken(userId) {
       try {
         const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || 'http://localhost:8000';
@@ -134,31 +181,67 @@ export default {
       });
     },
     handleScreenShare(presenter) {
+      console.log('=== HANDLE SCREEN SHARE DEBUG ===');
+      console.log('Presenter:', presenter);
+      
       if (!presenter) {
         console.log('No presenter found for screen share');
         this.screenSharePresent = false;
         if (this.$refs.screenShareVideo) hmsActions.detachVideo(null, this.$refs.screenShareVideo);
         return;
       }
+
       let screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
+      console.log('Screen track from selector:', screenTrack);
+      
       if (!screenTrack && presenter.auxiliaryTracks?.length) {
         const auxiliaryTrackId = presenter.auxiliaryTracks[0];
         const allTracks = hmsStore.getState().tracks || {};
         screenTrack = Object.values(allTracks).find(t => t.id === auxiliaryTrackId);
+        console.log('Screen track from auxiliary tracks:', screenTrack);
       }
+
       if (!screenTrack) {
+        console.log('No screen track found');
         this.screenSharePresent = false;
         if (this.$refs.screenShareVideo) hmsActions.detachVideo(null, this.$refs.screenShareVideo);
         return;
       }
-      console.log('Screen track state:', screenTrack.readyState, 'enabled:', screenTrack.enabled);
+
+      console.log('Screen track details:', {
+        id: screenTrack.id,
+        kind: screenTrack.kind,
+        enabled: screenTrack.enabled,
+        readyState: screenTrack.readyState,
+        source: screenTrack.source,
+        type: screenTrack.type
+      });
+
       this.screenSharePresent = true;
       this.$nextTick(() => {
         const videoEl = this.$refs.screenShareVideo;
+        console.log('Video element for screen share:', videoEl);
+        
         if (videoEl) {
           try {
             hmsActions.attachVideo(screenTrack, videoEl);
             console.log('Screen share attached, srcObject:', videoEl.srcObject);
+            
+            // Additional debugging after attachment
+            setTimeout(() => {
+              console.log('Video element state after attachment:', {
+                srcObject: videoEl.srcObject,
+                videoWidth: videoEl.videoWidth,
+                videoHeight: videoEl.videoHeight,
+                readyState: videoEl.readyState,
+                paused: videoEl.paused,
+                currentTime: videoEl.currentTime
+              });
+              
+              // Try to debug the video element specifically
+              this.debugVideoElements();
+            }, 1000);
+            
             videoEl.play().catch(error => console.error('Play error:', error));
             console.log('Screen share attached successfully');
           } catch (error) {
