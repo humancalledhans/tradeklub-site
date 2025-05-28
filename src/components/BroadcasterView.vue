@@ -18,6 +18,9 @@
       <button @click="forceScreenAttachment" style="position: absolute; top: 210px; right: 10px; z-index: 1000;">
         Force Screen Attachment
       </button>
+      <button @click="testVideoElementRules" style="position: absolute; top: 250px; right: 10px; z-index: 1000;">
+        Test Video Elements
+      </button>
       
       <video ref="broadcasterVideo" autoplay playsinline muted class="broadcaster-video"></video>
       <video
@@ -189,6 +192,84 @@ export default {
           }
         }
       });
+    },
+    testVideoElementRules() {
+      console.log('=== VIDEO ELEMENT RULES TEST ===');
+      
+      const broadcasterVideo = this.$refs.broadcasterVideo;
+      const screenShareVideo = this.$refs.screenShareVideo;
+      
+      console.log('Broadcaster video element:', {
+        hasSrcObject: !!broadcasterVideo?.srcObject,
+        readyState: broadcasterVideo?.readyState,
+        videoWidth: broadcasterVideo?.videoWidth,
+        className: broadcasterVideo?.className
+      });
+      
+      console.log('Screen share video element:', {
+        hasSrcObject: !!screenShareVideo?.srcObject,
+        readyState: screenShareVideo?.readyState,
+        videoWidth: screenShareVideo?.videoWidth,
+        className: screenShareVideo?.className
+      });
+      
+      // Test 1: Try to attach screen track to broadcaster video element
+      const hmsState = hmsStore.getState();
+      const screenTrack = Object.values(hmsState.tracks).find(track => 
+        track.source === 'screen' && track.type === 'video'
+      );
+      
+      if (screenTrack && broadcasterVideo) {
+        console.log('TEST 1: Attaching screen track to broadcaster video element...');
+        
+        try {
+          hmsActions.attachVideo(screenTrack, broadcasterVideo);
+          
+          setTimeout(() => {
+            console.log('Result of attaching screen track to broadcaster video:', {
+              hasSrcObject: !!broadcasterVideo.srcObject,
+              videoWidth: broadcasterVideo.videoWidth,
+              videoHeight: broadcasterVideo.videoHeight
+            });
+            
+            // Test 2: Try creating a completely new video element
+            console.log('TEST 2: Creating fresh video element...');
+            const freshVideo = document.createElement('video');
+            freshVideo.autoplay = true;
+            freshVideo.playsinline = true;
+            freshVideo.muted = true;
+            freshVideo.style.cssText = 'width: 100%; height: 100%; object-fit: contain; border: 2px solid red;';
+            
+            // Add it to the screen share container temporarily
+            const container = screenShareVideo.parentElement;
+            container.appendChild(freshVideo);
+            
+            // Try attaching screen track to fresh element
+            hmsActions.attachVideo(screenTrack, freshVideo);
+            
+            setTimeout(() => {
+              console.log('Result of attaching screen track to fresh video element:', {
+                hasSrcObject: !!freshVideo.srcObject,
+                videoWidth: freshVideo.videoWidth,
+                videoHeight: freshVideo.videoHeight
+              });
+              
+              if (freshVideo.srcObject) {
+                console.log('✅ SUCCESS! Fresh video element worked!');
+                freshVideo.play().catch(e => console.error('Play error:', e));
+              } else {
+                console.log('❌ Even fresh video element failed');
+                // Clean up
+                container.removeChild(freshVideo);
+              }
+            }, 2000);
+            
+          }, 2000);
+          
+        } catch (error) {
+          console.error('TEST 1 failed:', error);
+        }
+      }
     },
     debugHMSState() {
       const state = hmsStore.getState();
