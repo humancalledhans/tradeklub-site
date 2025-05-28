@@ -39,6 +39,9 @@
       <button @click="tryDirectTrackExtraction" style="position: absolute; top: 130px; right: 10px; z-index: 1000;">
         Try Direct Track
       </button>
+      <button @click="testScreenShareOnly" style="position: absolute; top: 210px; right: 10px; z-index: 1000;">
+        Test Screen Only
+      </button>
     </div>
   </div>
 </template>
@@ -85,6 +88,112 @@ export default {
     if (this.hasJoined) hmsActions.leave();
   },
   methods: {
+    testScreenShareOnly() {
+      console.log('=== SCREEN SHARE ONLY TEST ===');
+      
+      const hmsState = hmsStore.getState();
+      
+      // Find screen share track
+      const screenTrack = Object.values(hmsState.tracks).find(track => 
+        track.source === 'screen' && track.type === 'video'
+      );
+      
+      console.log('Screen track found:', !!screenTrack);
+      
+      if (screenTrack) {
+        console.log('Screen track details:', {
+          id: screenTrack.id,
+          enabled: screenTrack.enabled,
+          displayEnabled: screenTrack.displayEnabled,
+          peerId: screenTrack.peerId
+        });
+        
+        const mainVideo = this.$refs.mainVideo;
+        console.log('Main video element ready:', !!mainVideo);
+        
+        if (mainVideo) {
+          // Clear any existing content
+          mainVideo.srcObject = null;
+          
+          console.log('Attempting screen track attachment...');
+          
+          try {
+            hmsActions.attachVideo(screenTrack, mainVideo);
+            console.log('attachVideo call completed');
+            
+            // Check multiple times with delays
+            const checkTimes = [500, 1000, 2000, 3000, 5000];
+            
+            checkTimes.forEach(delay => {
+              setTimeout(() => {
+                console.log(`After ${delay}ms:`, {
+                  hasSrcObject: !!mainVideo.srcObject,
+                  videoWidth: mainVideo.videoWidth,
+                  videoHeight: mainVideo.videoHeight,
+                  readyState: mainVideo.readyState,
+                  paused: mainVideo.paused
+                });
+                
+                if (mainVideo.srcObject && delay === 2000) {
+                  console.log('✅ Attachment successful, trying to play...');
+                  mainVideo.play().catch(e => console.error('Play error:', e));
+                }
+              }, delay);
+            });
+            
+          } catch (error) {
+            console.error('Screen track attachment error:', error);
+          }
+          
+          // Also try a completely fresh approach
+          setTimeout(() => {
+            if (!mainVideo.srcObject) {
+              console.log('Trying alternative approach - re-render component...');
+              this.forceComponentRefresh();
+            }
+          }, 3000);
+        }
+      } else {
+        console.log('❌ No screen track found');
+      }
+    },
+
+    forceComponentRefresh() {
+      console.log('=== FORCE COMPONENT REFRESH ===');
+      
+      // Temporarily hide and show the video element
+      this.screenSharePresent = false;
+      
+      this.$nextTick(() => {
+        setTimeout(() => {
+          this.screenSharePresent = true;
+          
+          this.$nextTick(() => {
+            setTimeout(() => {
+              // Try attachment on fresh element
+              const hmsState = hmsStore.getState();
+              const screenTrack = Object.values(hmsState.tracks).find(track => 
+                track.source === 'screen' && track.type === 'video'
+              );
+              const mainVideo = this.$refs.mainVideo;
+              
+              if (screenTrack && mainVideo) {
+                console.log('Attaching to refreshed element...');
+                hmsActions.attachVideo(screenTrack, mainVideo);
+                
+                setTimeout(() => {
+                  console.log('After refresh attachment:', {
+                    hasSrcObject: !!mainVideo.srcObject,
+                    videoWidth: mainVideo.videoWidth,
+                    videoHeight: mainVideo.videoHeight
+                  });
+                }, 2000);
+              }
+            }, 500);
+          });
+        }, 100);
+      });
+    },
     testMainVideoAttachment() {
       console.log('=== TESTING MAIN VIDEO ELEMENT ===');
       
