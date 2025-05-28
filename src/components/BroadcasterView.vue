@@ -1,8 +1,25 @@
 <template>
   <div class="broadcast-wrapper">
-    <div v-if="!hasJoined" class="join-section">
-      <input v-model="userName" placeholder="Enter your name..." @keyup.enter="joinRoom" class="name-input" />
-      <button @click="joinRoom" :disabled="!userName.trim()">Join Room</button>
+    <div v-if="hasJoined" class="video-section">
+      <!-- Single video element that shows either broadcaster OR screen share -->
+      <video 
+        ref="mainVideo" 
+        autoplay 
+        playsinline 
+        muted 
+        :class="screenSharePresent ? 'screen-share-video' : 'broadcaster-video'"
+      ></video>
+      
+      <!-- Show what's currently being displayed -->
+      <div class="video-status">
+        <span v-if="screenSharePresent">📺 Screen Share</span>
+        <span v-else-if="broadcasterPresent">📹 Camera</span>
+        <span v-else>⏳ Waiting for stream...</span>
+      </div>
+      
+      <div v-if="!broadcasterPresent && !screenSharePresent" class="no-stream-message">
+        No broadcaster stream available yet.
+      </div>
     </div>
     <div v-if="hasJoined" class="video-section">
 
@@ -177,21 +194,28 @@ export default {
       if (!broadcaster || !broadcaster.videoTrack) {
         console.log('No broadcaster or video track available');
         this.broadcasterPresent = false;
-        if (this.$refs.broadcasterVideo) hmsActions.detachVideo(broadcaster?.videoTrack, this.$refs.broadcasterVideo);
         return;
       }
-      this.$nextTick(() => {
-        const videoEl = this.$refs.broadcasterVideo;
-        if (videoEl) {
-          try {
-            hmsActions.attachVideo(broadcaster.videoTrack, videoEl);
-            this.broadcasterPresent = true;
-          } catch (error) {
-            console.error('Error attaching broadcaster video:', error);
-            this.broadcasterPresent = false;
+      
+      // Only attach if screen share is NOT present (screen share takes priority)
+      if (!this.screenSharePresent) {
+        this.$nextTick(() => {
+          const videoEl = this.$refs.mainVideo;
+          if (videoEl) {
+            try {
+              hmsActions.attachVideo(broadcaster.videoTrack, videoEl);
+              this.broadcasterPresent = true;
+              console.log('✅ Broadcaster video attached');
+            } catch (error) {
+              console.error('Error attaching broadcaster video:', error);
+              this.broadcasterPresent = false;
+            }
           }
-        }
-      });
+        });
+      } else {
+        // Just mark as present, but don't attach (screen share has priority)
+        this.broadcasterPresent = true;
+      }
     },
     testVideoElementRules() {
       console.log('=== VIDEO ELEMENT RULES TEST ===');
@@ -560,107 +584,61 @@ export default {
         });
       }, 5000);
     },
-    async handleScreenShare(presenter) {
-      console.log('=== ENHANCED SCREEN SHARE HANDLER ===');
+    handleScreenShare(presenter) {
+      console.log('=== HANDLE SCREEN SHARE (FIXED) ===');
       
       if (!presenter) {
+        console.log('No presenter found for screen share');
         this.screenSharePresent = false;
+        
+        // Switch back to broadcaster video if available
+        if (this.broadcasterPresent) {
+          const peers = hmsStore.getState().peers;
+          const broadcaster = Object.values(peers).find(peer =>
+            peer.roleName === 'broadcaster' || peer.roleName === 'host' || peer.name === 'hans broadcaster'
+          );
+          if (broadcaster) {
+            this.handleBroadcaster(broadcaster);
+          }
+        }
         return;
       }
 
-      console.log('Presenter ID:', presenter.id);
-      
-      // Step 1: Wait for track to be fully ready
-      const waitForTrack = async (maxAttempts = 10) => {
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          console.log(`Track ready check - Attempt ${attempt}/${maxAttempts}`);
-          
-          const screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
-          
-          if (screenTrack) {
-            console.log(`Found track on attempt ${attempt}:`, screenTrack.id);
-            
-            // Force a refresh of the track by re-subscribing
-            try {
-              // Try to refresh the track in the store
-              await this.refreshTrackInStore(screenTrack.id);
-              
-              // Get the refreshed track
-              const refreshedTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
-              console.log('Refreshed track:', refreshedTrack);
-              
-              return refreshedTrack;
-            } catch (error) {
-              console.log(`Refresh attempt ${attempt} failed:`, error);
-            }
-          }
-          
-          // Wait before next attempt
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        return null;
-      };
-
-      const screenTrack = await waitForTrack();
+      let screenTrack = hmsStore.getState(selectScreenShareByPeerID(presenter.id));
       
       if (!screenTrack) {
-        console.log('❌ No screen track found after all attempts');
+        console.log('No screen track found');
         this.screenSharePresent = false;
         return;
       }
 
-      console.log('Using screen track:', screenTrack.id);
+      console.log('Found screen track:', screenTrack.id);
       this.screenSharePresent = true;
-
-      // Step 2: Enhanced video attachment
-      this.$nextTick(async () => {
-        const videoEl = this.$refs.screenShareVideo;
-        if (!videoEl) {
-          console.error('Video element not found');
-          return;
-        }
-
-        console.log('Starting attachment attempts...');
-
-        // Method 1: Standard HMS attachment with retry
-        for (let attempt = 1; attempt <= 5; attempt++) {
+      
+      this.$nextTick(() => {
+        const videoEl = this.$refs.mainVideo;
+        if (videoEl) {
           try {
-            console.log(`HMS attachment attempt ${attempt}/5`);
-            
-            // Clear any existing srcObject
-            videoEl.srcObject = null;
-            
-            // Try HMS attachVideo
+            console.log('Attaching screen track to main video element...');
             hmsActions.attachVideo(screenTrack, videoEl);
             
-            // Wait for attachment
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            console.log(`After attempt ${attempt}:`, {
-              hasSrcObject: !!videoEl.srcObject,
-              videoWidth: videoEl.videoWidth,
-              videoHeight: videoEl.videoHeight,
-              readyState: videoEl.readyState
-            });
-            
-            if (videoEl.srcObject && videoEl.videoWidth > 0) {
-              console.log(`✅ HMS attachment succeeded on attempt ${attempt}`);
-              await videoEl.play().catch(e => console.error('Play error:', e));
-              return;
-            }
+            setTimeout(() => {
+              console.log('Screen share attachment result:', {
+                hasSrcObject: !!videoEl.srcObject,
+                videoWidth: videoEl.videoWidth,
+                videoHeight: videoEl.videoHeight
+              });
+              
+              if (videoEl.srcObject) {
+                console.log('✅ Screen share attached successfully!');
+                videoEl.play().catch(e => console.error('Play error:', e));
+              }
+            }, 1000);
             
           } catch (error) {
-            console.error(`HMS attachment attempt ${attempt} failed:`, error);
+            console.error('Error attaching screen share:', error);
+            this.screenSharePresent = false;
           }
-        }
-
-        // Method 2: Direct WebRTC approach (bypass HMS)
-        console.log('HMS attachment failed, trying direct WebRTC approach...');
-        try {
-          await this.directWebRTCAttachment(presenter.id, videoEl);
-        } catch (error) {
-          console.error('Direct WebRTC approach failed:', error);
-          this.screenSharePresent = false;
         }
       });
     },
@@ -748,5 +726,17 @@ export default {
     color: #d1d9e6;
     font-size: 18px;
     text-align: center;
+  }
+
+  .video-status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    z-index: 100;
   }
   </style>
