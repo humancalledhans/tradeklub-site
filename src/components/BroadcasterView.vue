@@ -15,6 +15,9 @@
       <button @click="compareTrackAttachment" style="position: absolute; top: 170px; right: 10px; z-index: 1000;">
         Compare Tracks
       </button>
+      <button @click="forceScreenAttachment" style="position: absolute; top: 210px; right: 10px; z-index: 1000;">
+        Force Screen Attachment
+      </button>
       
       <video ref="broadcasterVideo" autoplay playsinline muted class="broadcaster-video"></video>
       <video
@@ -354,6 +357,127 @@ export default {
         console.error('Direct WebRTC attachment failed:', error);
         throw error;
       }
+    },
+    forceScreenAttachment() {
+      console.log('=== FORCE SCREEN ATTACHMENT ===');
+      
+      const hmsState = hmsStore.getState();
+      const screenTrack = Object.values(hmsState.tracks).find(track => 
+        track.source === 'screen' && track.type === 'video'
+      );
+      
+      if (!screenTrack) {
+        console.log('No screen track found');
+        return;
+      }
+      
+      console.log('Found screen track:', screenTrack.id);
+      
+      const videoEl = this.$refs.screenShareVideo;
+      if (!videoEl) {
+        console.log('No video element found');
+        return;
+      }
+      
+      // Method 1: Multiple attachment attempts with delays
+      const attemptAttachment = async (attempt = 1, maxAttempts = 5) => {
+        console.log(`Attachment attempt ${attempt}/${maxAttempts}`);
+        
+        try {
+          // Clear any existing srcObject
+          videoEl.srcObject = null;
+          
+          // Wait a bit
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Try attachment
+          hmsActions.attachVideo(screenTrack, videoEl);
+          
+          // Wait for attachment to take effect
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          console.log(`After attempt ${attempt}:`, {
+            hasSrcObject: !!videoEl.srcObject,
+            videoWidth: videoEl.videoWidth,
+            videoHeight: videoEl.videoHeight,
+            readyState: videoEl.readyState
+          });
+          
+          if (videoEl.srcObject && videoEl.readyState >= 2) {
+            console.log(`✅ Success on attempt ${attempt}!`);
+            videoEl.play().catch(e => console.error('Play error:', e));
+            return true;
+          }
+          
+          if (attempt < maxAttempts) {
+            return attemptAttachment(attempt + 1, maxAttempts);
+          }
+          
+        } catch (error) {
+          console.error(`Attempt ${attempt} error:`, error);
+        }
+        
+        return false;
+      };
+      
+      attemptAttachment().then(success => {
+        if (!success) {
+          console.log('❌ All attachment attempts failed');
+          console.log('Trying alternative approach...');
+          this.tryAlternativeAttachment(screenTrack, videoEl);
+        }
+      });
+    },
+
+    // Add this alternative attachment method
+    tryAlternativeAttachment(screenTrack, videoEl) {
+      console.log('=== ALTERNATIVE ATTACHMENT ===');
+      
+      // Method 1: Try detaching and reattaching
+      try {
+        console.log('Method 1: Detach and reattach');
+        hmsActions.detachVideo(screenTrack, videoEl);
+        
+        setTimeout(() => {
+          hmsActions.attachVideo(screenTrack, videoEl);
+          
+          setTimeout(() => {
+            console.log('After detach/reattach:', {
+              hasSrcObject: !!videoEl.srcObject,
+              readyState: videoEl.readyState
+            });
+          }, 2000);
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Detach/reattach failed:', error);
+      }
+      
+      // Method 2: Try forcing a different video element
+      setTimeout(() => {
+        console.log('Method 2: Force re-render component');
+        this.screenSharePresent = false;
+        
+        this.$nextTick(() => {
+          this.screenSharePresent = true;
+          
+          this.$nextTick(() => {
+            setTimeout(() => {
+              const freshVideoEl = this.$refs.screenShareVideo;
+              if (freshVideoEl) {
+                hmsActions.attachVideo(screenTrack, freshVideoEl);
+                
+                setTimeout(() => {
+                  console.log('After re-render attachment:', {
+                    hasSrcObject: !!freshVideoEl.srcObject,
+                    readyState: freshVideoEl.readyState
+                  });
+                }, 2000);
+              }
+            }, 500);
+          });
+        });
+      }, 5000);
     },
     async handleScreenShare(presenter) {
       console.log('=== ENHANCED SCREEN SHARE HANDLER ===');
