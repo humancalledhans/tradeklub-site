@@ -8,90 +8,169 @@
         <button type="submit">Login</button>
       </form>
     </div>
-    <div v-else class="admin-chat-panel">
+    
+    <div v-else class="admin-panel">
       <h2>Admin Live Stream Panel</h2>
-      <div class="tv-box-wrapper large" style="position: relative;">
-        <!-- 100ms meeting iframe -->
-        <iframe
-          title="100ms-meeting"
-          allow="camera *; microphone *; display-capture *; autoplay *; clipboard-write *"
-          src="https://hans-videoconf-1131.app.100ms.live/meeting/nwr-getw-oww"
-          style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
-          frameborder="0"
-          allowfullscreen
-        ></iframe>
-      </div>
       
-      <!-- <p>Welcome, Admin!</p> -->
-      <!-- New Subscribe Button -->
-      <!-- <button @click="subscribeToNotifications" class="subscribe-button">
-        (TEST) Subscribe to Notifications
-      </button>
-      <button @click="resetChat" class="reset-chat-button">Reset Chat</button>
-      <div class="chat-window" ref="chatWindow">
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          class="chat-bubble"
-        >
-          <span class="message-name">{{ message.name }}</span>
-          <span class="message-text">{{ message.text }}</span>
-          <span class="message-timestamp">{{ new Date(message.timestamp).toLocaleString() }}</span>
+      <!-- Join Controls -->
+      <div v-if="!joined" class="join-section">
+        <h3>Ready to Start Live Stream?</h3>
+        <div class="stream-preview">
+          <p><strong>📺 Channel:</strong> trading-room</p>
+          <p><strong>👨‍🏫 Host:</strong> Dion (Admin)</p>
+          <p><strong>🎯 Mode:</strong> Screen sharing & camera</p>
+        </div>
+        <button @click="startLiveStream" class="start-stream-btn">
+          🚀 Start Live Stream
+        </button>
+      </div>
+
+      <!-- Live Stream Controls -->
+      <div v-if="joined" class="stream-section">
+        <!-- Video Display -->
+        <div class="video-container">
+          <video 
+            ref="adminVideo" 
+            autoplay 
+            playsinline 
+            muted 
+            class="admin-video"
+          ></video>
+          
+          <!-- Stream Status -->
+          <div class="stream-status">
+            <span v-if="isScreenSharing" class="status-active">🖥️ Screen Sharing Active</span>
+            <span v-else-if="cameraOn" class="status-active">📹 Camera Active</span>
+            <span v-else class="status-inactive">📹 Stream Offline</span>
+            
+            <div class="viewer-count">
+              👥 Viewers: {{ remoteViewers.length }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Controls -->
+        <div class="admin-controls">
+          <button @click="toggleCamera" :class="{ active: cameraOn, disabled: isScreenSharing }">
+            {{ cameraOn ? '📷 Camera On' : '📷 Camera Off' }}
+          </button>
+          
+          <button @click="toggleMicrophone" :class="{ active: micOn }">
+            {{ micOn ? '🎤 Mic On' : '🎤 Mic Off' }}
+          </button>
+          
+          <button @click="toggleScreenShare" :class="{ active: isScreenSharing }">
+            {{ isScreenSharing ? '🖥️ Stop Screen Share' : '🖥️ Share Screen' }}
+          </button>
+          
+          <button @click="endLiveStream" class="danger-button">
+            End Live Stream
+          </button>
+        </div>
+
+        <!-- Stream Info -->
+        <div class="stream-info">
+          <div class="info-card">
+            <h4>Stream Details</h4>
+            <p><strong>Channel:</strong> {{ channelName }}</p>
+            <p><strong>Status:</strong> {{ streamStatus }}</p>
+            <p><strong>Duration:</strong> {{ streamDuration }}</p>
+          </div>
+          
+          <div class="info-card">
+            <h4>Connected Viewers</h4>
+            <div v-if="remoteViewers.length === 0" class="no-viewers">
+              No viewers connected yet
+            </div>
+            <div v-for="viewer in remoteViewers" :key="viewer.uid" class="viewer-item">
+              👤 {{ viewer.uid }}
+            </div>
+          </div>
         </div>
       </div>
-      <div class="input-wrapper">
-        <input
-          v-model="newMessage"
-          placeholder="Admin reply..."
-          @keyup.enter="sendAdminReply"
-        />
-        <button @click="sendAdminReply">Reply</button>
-      </div> -->
-      <!-- Debug Window -->
-      <!-- <div class="debug-window">
-        <h3>Debug Console</h3>
-        <div v-for="log in debugLogs" :key="log.id" class="debug-log">
-          {{ log.timestamp }} - {{ log.message }}
-        </div>
-        <button @click="resetLogs" class="reset-logs-button">Reset Logs</button>
-      </div> -->
     </div>
   </div>
 </template>
 
 <script>
-// import { db } from "@/utils/firebase-config";
-// import { collection, query, orderBy, onSnapshot, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
-// import { requestNotificationPermission } from "@/utils/firebase-messaging";
+import AgoraRTC from "agora-rtc-sdk-ng";
 
 export default {
+  name: 'AgoraAdminView',
   data() {
     return {
+      // Admin login
       username: "",
       password: "",
       isAdmin: false,
-      messages: [],
-      newMessage: "",
-      debugLogs: [],
+      
+      // Agora client
+      client: null,
+      
+      // Stream state
+      joined: false,
+      adminName: 'Dion (Admin)', // Fixed admin name
+      channelName: 'trading-room', // Fixed channel name
+      
+      // Local tracks
+      localVideoTrack: null,
+      localAudioTrack: null,
+      localScreenTrack: null,
+      
+      // Local state
+      cameraOn: false,
+      micOn: false,
+      isScreenSharing: false,
+      
+      // Remote viewers
+      remoteViewers: [],
+      
+      // Stream info
+      streamStartTime: null,
+      streamDuration: '00:00:00',
+      
+      // Agora credentials
+      appId: process.env.VUE_APP_AGORA_APP_ID,
+      token: null
     };
   },
+  
+  computed: {
+    streamStatus() {
+      if (!this.joined) return 'Offline';
+      if (this.isScreenSharing) return 'Screen Sharing';
+      if (this.cameraOn) return 'Camera Active';
+      return 'Audio Only';
+    }
+  },
+  
+  async mounted() {
+    // Check admin login status
+    const adminStatus = sessionStorage.getItem("isAdmin");
+    if (adminStatus === "true") {
+      this.isAdmin = true;
+    }
+    
+    // Initialize Agora client
+    try {
+      this.client = AgoraRTC.createClient({ 
+        mode: "rtc", 
+        codec: "vp8" 
+      });
+      this.setupEventListeners();
+    } catch (error) {
+      console.error('Failed to initialize Agora client:', error);
+    }
+  },
+  
+  beforeUnmount() {
+    if (this.joined) {
+      this.endLiveStream();
+    }
+    this.stopStreamTimer();
+  },
+  
   methods: {
-    // resetLogs() {
-    //   sessionStorage.removeItem("debugLogs");
-    //   this.debugLogs = [];
-    // },
-    // logDebug(message) {
-    //   const timestamp = new Date().toLocaleTimeString();
-    //   const newLog = { id: Date.now(), message, timestamp };
-    //   let logs = JSON.parse(sessionStorage.getItem("debugLogs")) || [];
-    //   logs.push(newLog);
-    //   if (logs.length > 50) logs.shift();
-    //   sessionStorage.setItem("debugLogs", JSON.stringify(logs));
-    //   this.debugLogs = logs;
-    // },
-    // loadLogsFromSessionStorage() {
-    //   this.debugLogs = JSON.parse(sessionStorage.getItem("debugLogs")) || [];
-    // },
     login() {
       if (
         this.username === process.env.VUE_APP_ADMIN_USERNAME &&
@@ -99,81 +178,248 @@ export default {
       ) {
         this.isAdmin = true;
         sessionStorage.setItem("isAdmin", "true");
-        // this.fetchMessages();
       } else {
         alert("Invalid credentials");
       }
     },
-    // fetchMessages() {
-    //   const messagesQuery = query(
-    //     collection(db, "chatMessages"),
-    //     orderBy("timestamp", "asc")
-    //   );
-    //   onSnapshot(messagesQuery, (snapshot) => {
-    //     this.messages = snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
-    //     this.scrollToBottom();
-    //   });
-    // },
-    // scrollToBottom() {
-    //   this.$nextTick(() => {
-    //     const chatWindow = this.$refs.chatWindow;
-    //     if (chatWindow) {
-    //       chatWindow.scrollTop = chatWindow.scrollHeight;
-    //     }
-    //   });
-    // },
-    // sendAdminReply() {
-    //   if (this.newMessage.trim()) {
-    //     addDoc(collection(db, "chatMessages"), {
-    //       name: "Admin",
-    //       text: this.newMessage.trim(),
-    //       timestamp: Date.now(),
-    //       role: "admin",
-    //     })
-    //       .then(() => {
-    //         this.newMessage = "";
-    //         this.scrollToBottom();
-    //       })
-    //       .catch((error) => {
-    //         console.error("Error sending admin reply:", error);
-    //       });
-    //   }
-    // },
-    // async resetChat() {
-    //   try {
-    //     const messagesCollection = collection(db, "chatMessages");
-    //     const messagesSnapshot = await getDocs(messagesCollection);
-    //     const deletePromises = messagesSnapshot.docs.map((docSnapshot) =>
-    //       deleteDoc(doc(db, "chatMessages", docSnapshot.id))
-    //     );
-    //     await Promise.all(deletePromises);
-    //     alert("Chat has been reset.");
-    //     this.messages = [];
-    //   } catch (error) {
-    //     console.error("Error resetting chat:", error);
-    //     alert("Failed to reset chat. Please try again.");
-    //   }
-    // },
-    // async subscribeToNotifications() {
-    //   console.log("subscribe to notification button clicked");
-    //   try {
-    //     await requestNotificationPermission();
-    //     alert("Subscribed to notifications successfully!");
-    //   } catch (error) {
-    //     this.logDebug("main notif func error.", error);
-    //     console.error("Failed to subscribe to notifications:", error);
-    //     alert("Failed to subscribe to notifications. Please try again.");
-    //   }
-    // },
-  },
-  mounted() {
-    const adminStatus = sessionStorage.getItem("isAdmin");
-    if (adminStatus === "true") {
-      this.isAdmin = true;
-      // this.fetchMessages();
+    
+    setupEventListeners() {
+      // When a viewer joins
+      this.client.on("user-joined", (user) => {
+        console.log("Viewer joined:", user.uid);
+        this.addViewer(user);
+      });
+      
+      // When a viewer leaves
+      this.client.on("user-left", (user) => {
+        console.log("Viewer left:", user.uid);
+        this.removeViewer(user.uid);
+      });
+      
+      // When viewer publishes (they shouldn't, but just in case)
+      this.client.on("user-published", async (user, mediaType) => {
+        console.log("Viewer published (unexpected):", user.uid, mediaType);
+      });
+    },
+    
+    async startLiveStream() {
+      try {
+        console.log('Getting Agora token...');
+        
+        // Get token from backend
+        const tokenResponse = await fetch(`${process.env.VUE_APP_BACKEND_URL || 'http://localhost:8000'}/generate-agora-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel_name: this.channelName,
+            uid: this.adminName,
+            role: 'host'
+          })
+        });
+        
+        if (!tokenResponse.ok) {
+          throw new Error(`Failed to get token: ${tokenResponse.status}`);
+        }
+        
+        const tokenData = await tokenResponse.json();
+        console.log('Token received successfully', tokenData);
+        
+        // ⭐ FIX: Use the UID returned from the backend instead of 0
+        const uidToUse = parseInt(tokenData.uid); // Backend returns string, convert to number
+        
+        // Join with token using the correct UID that matches the token
+        await this.client.join(
+          tokenData.app_id, 
+          this.channelName, 
+          tokenData.token,
+          uidToUse // Use the UID that the token was generated for
+        );
+        
+        console.log(`Successfully joined as admin with UID: ${uidToUse}`);
+        this.joined = true;
+        this.streamStartTime = Date.now();
+        this.startStreamTimer();
+        
+        // Start with mic on
+        await this.toggleMicrophone();
+        
+      } catch (error) {
+        console.error('Failed to start live stream:', error);
+        alert('Failed to start live stream: ' + error.message);
+      }
+    },
+    
+    async endLiveStream() {
+      try {
+        // Stop all local tracks
+        if (this.localVideoTrack) {
+          await this.client.unpublish(this.localVideoTrack);
+          this.localVideoTrack.stop();
+          this.localVideoTrack.close();
+          this.localVideoTrack = null;
+        }
+        
+        if (this.localAudioTrack) {
+          await this.client.unpublish(this.localAudioTrack);
+          this.localAudioTrack.stop();
+          this.localAudioTrack.close();
+          this.localAudioTrack = null;
+        }
+        
+        if (this.localScreenTrack) {
+          await this.client.unpublish(this.localScreenTrack);
+          this.localScreenTrack.stop();
+          this.localScreenTrack.close();
+          this.localScreenTrack = null;
+        }
+        
+        // Leave the channel
+        await this.client.leave();
+        
+        // Reset state
+        this.joined = false;
+        this.cameraOn = false;
+        this.micOn = false;
+        this.isScreenSharing = false;
+        this.remoteViewers = [];
+        this.stopStreamTimer();
+        
+        console.log('Live stream ended');
+        
+      } catch (error) {
+        console.error('Failed to end live stream:', error);
+      }
+    },
+    
+    async toggleCamera() {
+      if (this.isScreenSharing) {
+        alert('Cannot use camera while screen sharing. Stop screen share first.');
+        return;
+      }
+      
+      try {
+        if (!this.cameraOn) {
+          // Turn camera on
+          this.localVideoTrack = await AgoraRTC.createCameraVideoTrack();
+          this.localVideoTrack.play(this.$refs.adminVideo);
+          
+          await this.client.publish(this.localVideoTrack);
+          this.cameraOn = true;
+          console.log('Camera turned on');
+        } else {
+          // Turn camera off
+          await this.client.unpublish(this.localVideoTrack);
+          this.localVideoTrack.stop();
+          this.localVideoTrack.close();
+          this.localVideoTrack = null;
+          this.cameraOn = false;
+          console.log('Camera turned off');
+        }
+      } catch (error) {
+        console.error('Failed to toggle camera:', error);
+        alert('Camera error: ' + error.message);
+      }
+    },
+    
+    async toggleMicrophone() {
+      try {
+        if (!this.micOn) {
+          // Turn mic on
+          this.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          await this.client.publish(this.localAudioTrack);
+          this.micOn = true;
+          console.log('Microphone turned on');
+        } else {
+          // Turn mic off
+          await this.client.unpublish(this.localAudioTrack);
+          this.localAudioTrack.stop();
+          this.localAudioTrack.close();
+          this.localAudioTrack = null;
+          this.micOn = false;
+          console.log('Microphone turned off');
+        }
+      } catch (error) {
+        console.error('Failed to toggle microphone:', error);
+        alert('Microphone error: ' + error.message);
+      }
+    },
+    
+    async toggleScreenShare() {
+      try {
+        if (!this.isScreenSharing) {
+          // Start screen sharing
+          console.log('Starting screen share...');
+          
+          // Stop camera first if it's on
+          if (this.cameraOn) {
+            await this.client.unpublish(this.localVideoTrack);
+            this.localVideoTrack.stop();
+            this.localVideoTrack.close();
+            this.localVideoTrack = null;
+            this.cameraOn = false;
+          }
+          
+          // Create screen share track
+          this.localScreenTrack = await AgoraRTC.createScreenVideoTrack();
+          this.localScreenTrack.play(this.$refs.adminVideo);
+          
+          await this.client.publish(this.localScreenTrack);
+          this.isScreenSharing = true;
+          console.log('Screen sharing started');
+          
+        } else {
+          // Stop screen sharing
+          console.log('Stopping screen share...');
+          
+          await this.client.unpublish(this.localScreenTrack);
+          this.localScreenTrack.stop();
+          this.localScreenTrack.close();
+          this.localScreenTrack = null;
+          this.isScreenSharing = false;
+          console.log('Screen sharing stopped');
+        }
+      } catch (error) {
+        console.error('Failed to toggle screen share:', error);
+        alert('Screen share error: ' + error.message);
+      }
+    },
+    
+    addViewer(user) {
+      const existingViewer = this.remoteViewers.find(v => v.uid === user.uid);
+      if (!existingViewer) {
+        this.remoteViewers.push({
+          uid: user.uid,
+          joinTime: Date.now()
+        });
+      }
+    },
+    
+    removeViewer(uid) {
+      this.remoteViewers = this.remoteViewers.filter(viewer => viewer.uid !== uid);
+    },
+    
+    startStreamTimer() {
+      this.streamTimer = setInterval(() => {
+        if (this.streamStartTime) {
+          const elapsed = Date.now() - this.streamStartTime;
+          const hours = Math.floor(elapsed / 3600000);
+          const minutes = Math.floor((elapsed % 3600000) / 60000);
+          const seconds = Math.floor((elapsed % 60000) / 1000);
+          
+          this.streamDuration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+      }, 1000);
+    },
+    
+    stopStreamTimer() {
+      if (this.streamTimer) {
+        clearInterval(this.streamTimer);
+        this.streamTimer = null;
+      }
     }
-    // this.loadLogsFromSessionStorage();
-  },
+  }
 };
 </script>
 
@@ -181,31 +427,39 @@ export default {
 .admin-login-wrapper {
   width: 100%;
   height: 100%;
-  margin: 0 auto;
+  background: #1e2a44;
+  color: white;
 }
 
 .admin-login {
-  background-color: #f8f8f8;
-  padding: 20px;
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #f8f8f8;
+  color: #333;
+  padding: 40px;
 }
 
 .admin-login input {
-  width: 100%;
-  padding: 10px;
+  width: 300px;
+  padding: 12px;
   margin: 10px 0;
   border: 1px solid #ddd;
   border-radius: 4px;
+  font-size: 16px;
 }
 
 .admin-login button {
-  width: 100%;
-  padding: 10px;
+  width: 300px;
+  padding: 12px;
   background-color: #4CAF50;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 16px;
   transition: background-color 0.3s;
 }
 
@@ -213,143 +467,205 @@ export default {
   background-color: #45a049;
 }
 
-.admin-chat-panel {
-  background-color: #e3f2fd;
+.admin-panel {
+  height: 100%;
   padding: 20px;
-  border-radius: 8px;
   display: flex;
   flex-direction: column;
-  height: 100%; /* Ensure it takes full height */
 }
 
-.tv-box-wrapper.large {
-  position: relative;
-  width: 100%;
-  height: 700px; /* Fixed height for the iframe, adjust as needed */
-  margin-bottom: 20px;
-}
-
-.chat-window {
-  max-height: 300px; /* Adjusted to fit below iframe */
-  overflow-y: auto;
-  border: 1px solid #ddd;
-  padding: 10px;
-  margin-bottom: 20px;
-  flex-grow: 1; /* Allow it to take remaining space */
-}
-
-.chat-bubble {
-  margin: 10px 0;
-  padding: 10px;
-  background-color: #f1f1f1;
-  border-radius: 8px;
-}
-
-.message-name {
-  font-weight: bold;
-  margin-right: 5px;
-}
-
-.message-text {
-  margin-right: 10px;
-}
-
-.message-timestamp {
-  font-size: 0.8em;
-  color: #888;
-}
-
-.input-wrapper {
-  margin-top: 10px;
+.join-section {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 15px;
 }
 
-.input-wrapper input {
-  flex-grow: 1;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px 0 0 4px;
-}
-
-.input-wrapper button {
-  padding: 10px;
-  background-color: #162D5D;
-  color: white;
-  border: none;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.input-wrapper button:hover {
-  background-color: #315297;
-}
-
-.reset-chat-button {
-  padding: 10px 15px;
-  background-color: #FF5722;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 15px;
-  transition: background-color 0.3s;
-}
-
-.reset-chat-button:hover {
-  background-color: #E64A19;
-}
-
-.subscribe-button {
-  padding: 10px 15px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 15px;
-  transition: background-color 0.3s;
-}
-
-.subscribe-button:hover {
-  background-color: #45a049;
-}
-
-.debug-window {
-  margin-top: 20px;
-  border: 1px solid #ddd;
-  padding: 10px;
-  background-color: #f8f8f8;
+.stream-preview {
+  background: #2c3e5a;
+  padding: 20px;
   border-radius: 8px;
-  max-height: 200px;
-  overflow-y: auto;
+  margin: 20px 0;
+  text-align: left;
 }
 
-.debug-window h3 {
-  margin-top: 0;
-  font-size: 1.2em;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 5px;
+.stream-preview p {
+  margin: 10px 0;
+  color: #d1d9e6;
+  font-size: 16px;
 }
 
-.debug-log {
-  font-size: 0.9em;
-  color: #333;
-  margin-bottom: 5px;
-}
-
-.reset-logs-button {
-  padding: 10px 15px;
-  background-color: #d9534f;
+.start-stream-btn {
+  padding: 15px 30px;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  border: none;
+  border-radius: 8px;
   color: white;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.start-stream-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+}
+
+.join-section button {
+  padding: 12px 24px;
+  background: #4a6fa5;
   border: none;
   border-radius: 4px;
+  color: white;
   cursor: pointer;
-  margin-top: 10px;
-  transition: background-color 0.3s;
+  font-size: 16px;
 }
 
-.reset-logs-button:hover {
-  background-color: #c9302c;
+.stream-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.video-container {
+  position: relative;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-video {
+  width: 100%;
+  height: 400px;
+  object-fit: contain;
+  background: #000;
+}
+
+.stream-status {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-active {
+  background: rgba(40, 167, 69, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.status-inactive {
+  background: rgba(108, 117, 125, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.viewer-count {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.admin-controls {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.admin-controls button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 4px;
+  background: #3b4a6b;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s;
+  font-size: 14px;
+}
+
+.admin-controls button:hover {
+  background: #4a6fa5;
+}
+
+.admin-controls button.active {
+  background: #28a745;
+}
+
+.admin-controls button.disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.danger-button {
+  background: #dc3545 !important;
+}
+
+.danger-button:hover {
+  background: #c82333 !important;
+}
+
+.stream-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.info-card {
+  background: #2c3e5a;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.info-card h4 {
+  margin: 0 0 15px 0;
+  color: #ffffff;
+  border-bottom: 1px solid #3b4a6b;
+  padding-bottom: 10px;
+}
+
+.info-card p {
+  margin: 8px 0;
+  color: #d1d9e6;
+}
+
+.no-viewers {
+  color: #8a9ba8;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+.viewer-item {
+  background: #1e2a44;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 5px 0;
+  color: #d1d9e6;
+}
+
+@media (max-width: 768px) {
+  .stream-info {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-controls {
+    flex-direction: column;
+  }
+  
+  .admin-controls button {
+    width: 100%;
+  }
 }
 </style>

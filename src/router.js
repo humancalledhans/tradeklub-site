@@ -8,6 +8,7 @@ const routes = [
     { path: '/live-tv', name: 'LiveTv', component: LiveTv },
     { path: '/markets', name: 'Markets', component: RssWall },
     { path: '/admin-panel', name: 'Admin Login', component: AdminPanel },
+    { path: '/agora-test', name: 'Agora Test', component: () => import('@/components/AgoraTest.vue') },
     // Add other routes for additional tabs
 ];
 
