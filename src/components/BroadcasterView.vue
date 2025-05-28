@@ -1,5 +1,10 @@
 <template>
   <div class="broadcast-wrapper">
+    <div v-if="!hasJoined" class="join-section">
+      <input v-model="userName" placeholder="Enter your name..." @keyup.enter="joinRoom" class="name-input" />
+      <button @click="joinRoom" :disabled="!userName.trim()">Join Room</button>
+    </div>
+    
     <div v-if="hasJoined" class="video-section">
       <!-- Single video element that shows either broadcaster OR screen share -->
       <video 
@@ -20,37 +25,17 @@
       <div v-if="!broadcasterPresent && !screenSharePresent" class="no-stream-message">
         No broadcaster stream available yet.
       </div>
-    </div>
-    <div v-if="hasJoined" class="video-section">
 
-      <button @click="debugHMSState" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+      <!-- Debug buttons -->
+      <button @click="debugHMSState" style="position: absolute; top: 50px; right: 10px; z-index: 1000;">
         Debug HMS State
       </button>
-      <button @click="debugVideoElements" style="position: absolute; top: 10px; right: 120px; z-index: 1000;">
+      <button @click="debugVideoElements" style="position: absolute; top: 50px; right: 150px; z-index: 1000;">
         Debug Videos
       </button>
-      <button @click="compareTrackAttachment" style="position: absolute; top: 170px; right: 10px; z-index: 1000;">
-        Compare Tracks
+      <button @click="testMainVideoAttachment" style="position: absolute; top: 90px; right: 10px; z-index: 1000;">
+        Test Main Video
       </button>
-      <button @click="forceScreenAttachment" style="position: absolute; top: 210px; right: 10px; z-index: 1000;">
-        Force Screen Attachment
-      </button>
-      <button @click="testVideoElementRules" style="position: absolute; top: 250px; right: 10px; z-index: 1000;">
-        Test Video Elements
-      </button>
-      
-      <video ref="broadcasterVideo" autoplay playsinline muted class="broadcaster-video"></video>
-      <video
-        v-if="screenSharePresent"
-        ref="screenShareVideo"
-        autoplay
-        playsinline
-        muted
-        class="screen-share-video"
-      ></video>
-      <div v-if="!broadcasterPresent && !screenSharePresent" class="no-stream-message">
-        No broadcaster stream available yet.
-      </div>
     </div>
   </div>
 </template>
@@ -97,6 +82,76 @@ export default {
     if (this.hasJoined) hmsActions.leave();
   },
   methods: {
+    testMainVideoAttachment() {
+      console.log('=== TESTING MAIN VIDEO ELEMENT ===');
+      
+      const mainVideo = this.$refs.mainVideo;
+      console.log('Main video element:', mainVideo);
+      
+      if (mainVideo) {
+        console.log('Main video current state:', {
+          hasSrcObject: !!mainVideo.srcObject,
+          videoWidth: mainVideo.videoWidth,
+          videoHeight: mainVideo.videoHeight,
+          readyState: mainVideo.readyState,
+          className: mainVideo.className
+        });
+        
+        // Get current tracks and try manual attachment
+        const hmsState = hmsStore.getState();
+        
+        // If screen share is present, try attaching screen track
+        if (this.screenSharePresent) {
+          const screenTrack = Object.values(hmsState.tracks).find(track => 
+            track.source === 'screen' && track.type === 'video'
+          );
+          
+          if (screenTrack) {
+            console.log('Trying to attach screen track to main video...');
+            try {
+              hmsActions.attachVideo(screenTrack, mainVideo);
+              
+              setTimeout(() => {
+                console.log('After screen track attachment:', {
+                  hasSrcObject: !!mainVideo.srcObject,
+                  videoWidth: mainVideo.videoWidth,
+                  videoHeight: mainVideo.videoHeight
+                });
+              }, 2000);
+            } catch (error) {
+              console.error('Screen track attachment failed:', error);
+            }
+          }
+        }
+        
+        // If broadcaster is present, try attaching broadcaster track
+        else if (this.broadcasterPresent) {
+          const broadcasterTrack = Object.values(hmsState.tracks).find(track => 
+            track.source === 'regular' && 
+            track.type === 'video' && 
+            track.enabled === true &&
+            track.displayEnabled === true
+          );
+          
+          if (broadcasterTrack) {
+            console.log('Trying to attach broadcaster track to main video...');
+            try {
+              hmsActions.attachVideo(broadcasterTrack, mainVideo);
+              
+              setTimeout(() => {
+                console.log('After broadcaster track attachment:', {
+                  hasSrcObject: !!mainVideo.srcObject,
+                  videoWidth: mainVideo.videoWidth,
+                  videoHeight: mainVideo.videoHeight
+                });
+              }, 2000);
+            } catch (error) {
+              console.error('Broadcaster track attachment failed:', error);
+            }
+          }
+        }
+      }
+    },
     debugVideoElements() {
       console.log('=== VIDEO DEBUGGING ===');
       const videos = document.querySelectorAll('video');
@@ -123,10 +178,10 @@ export default {
         });
       });
 
-      // Also check your specific video refs
-      console.log('Broadcaster video ref:', this.$refs.broadcasterVideo);
-      console.log('Screen share video ref:', this.$refs.screenShareVideo);
+      // Check the main video ref specifically
+      console.log('Main video ref:', this.$refs.mainVideo);
       console.log('Screen share present flag:', this.screenSharePresent);
+      console.log('Broadcaster present flag:', this.broadcasterPresent);
     },
     async fetchAuthToken(userId) {
       try {
