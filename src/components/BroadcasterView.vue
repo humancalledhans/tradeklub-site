@@ -1,26 +1,26 @@
 <template>
   <div class="viewer-wrapper">
     <div v-if="!joined" class="join-section">
-      <h3>Join Live Trading Session</h3>
+      <!-- <h3>Join Live Trading Session</h3> -->
       <input 
         v-model="viewerName" 
         placeholder="Enter your name..." 
         @keyup.enter="joinAsViewer"
         class="viewer-input" 
       />
-      <div class="channel-info">
+      <!-- <div class="channel-info">
         <p><strong>📺 Joining:</strong> trading-room</p>
         <p><strong>👨‍🏫 Host:</strong> Dion (Admin)</p>
-      </div>
+      </div> -->
       <button @click="joinAsViewer" :disabled="!viewerName.trim()">
         Join Session
       </button>
       
       <div class="join-info">
-        <p>👋 You're joining as a viewer</p>
-        <p>📺 You'll watch Dion's live trading session</p>
+        <!-- <p>👋 You're joining as a viewer</p> -->
+        <!-- <p>📺 You'll watch Dion's live trading session</p> -->
         <p>🔇 Your camera and microphone will stay off</p>
-        <p>🎧 You can control audio volume once connected</p>
+        <!-- <p>🎧 You can control audio volume once connected</p> -->
       </div>
     </div>
 
@@ -572,6 +572,7 @@ export default {
   background: #000;
 }
 
+
 .stream-overlay {
   position: absolute;
   top: 0;
@@ -583,12 +584,23 @@ export default {
   flex-direction: column;
   justify-content: space-between;
   padding: 15px;
+  /* Add these properties to contain the content */
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 10;
 }
+
 
 .stream-info {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  /* Ensure content stays within bounds */
+  width: 100%;
+  max-width: 100%;
+  flex-shrink: 0;
+  /* Prevent text from overflowing */
+  overflow: hidden;
 }
 
 .stream-type {
@@ -598,6 +610,12 @@ export default {
   border-radius: 4px;
   font-weight: bold;
   font-size: 14px;
+  /* Prevent overflow */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  flex-shrink: 0;
 }
 
 .instructor-info {
@@ -606,14 +624,28 @@ export default {
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 14px;
+  /* Prevent overflow */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  flex-shrink: 0;
 }
+
 
 .viewer-controls {
   display: flex;
   gap: 10px;
   align-self: flex-end;
   pointer-events: auto;
+  /* Ensure controls stay within bounds */
+  width: 100%;
+  max-width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
+
 
 .viewer-controls button {
   padding: 8px 12px;
@@ -624,6 +656,10 @@ export default {
   cursor: pointer;
   transition: background 0.3s;
   font-size: 12px;
+  /* Prevent button overflow */
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .viewer-controls button:hover {
@@ -719,6 +755,36 @@ export default {
   .stream-info {
     flex-direction: column;
     gap: 10px;
+  }
+}
+
+/* Additional mobile responsiveness for overlay */
+@media (max-width: 768px) {
+  .stream-overlay {
+    padding: 10px;
+  }
+  
+  .stream-info {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  
+  .stream-type,
+  .instructor-info {
+    max-width: calc(100% - 20px);
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  
+  .viewer-controls {
+    justify-content: center;
+    gap: 8px;
+  }
+  
+  .viewer-controls button {
+    font-size: 11px;
+    padding: 6px 10px;
   }
 }
 </style>
