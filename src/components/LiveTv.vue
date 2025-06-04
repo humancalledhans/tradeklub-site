@@ -63,6 +63,7 @@
                         <BroadcasterView 
                         role="viewer" 
                         ref="liveStreamViewer" 
+                        class="full-size"
                         />
                     </div>
                 </div>
@@ -983,5 +984,11 @@ export default {
 
 .modal-close:active {
     transform: translateY(1px);
+}
+
+.full-size {
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 </style>

@@ -1,26 +1,18 @@
 <template>
   <div class="viewer-wrapper">
     <div v-if="!joined" class="join-section">
-      <!-- <h3>Join Live Trading Session</h3> -->
       <input 
         v-model="viewerName" 
         placeholder="Enter your name..." 
         @keyup.enter="joinAsViewer"
         class="viewer-input" 
       />
-      <!-- <div class="channel-info">
-        <p><strong>📺 Joining:</strong> trading-room</p>
-        <p><strong>👨‍🏫 Host:</strong> Dion (Admin)</p>
-      </div> -->
       <button @click="joinAsViewer" :disabled="!viewerName.trim()">
         Join Session
       </button>
       
       <div class="join-info">
-        <!-- <p>👋 You're joining as a viewer</p> -->
-        <!-- <p>📺 You'll watch Dion's live trading session</p> -->
         <p>🔇 Your camera and microphone will stay off</p>
-        <!-- <p>🎧 You can control audio volume once connected</p> -->
       </div>
     </div>
 
@@ -62,52 +54,13 @@
             <button @click="toggleFullscreen" class="fullscreen-btn">
               {{ isFullscreen ? '🔲 Exit Fullscreen' : '⛶ Fullscreen' }}
             </button>
+            
+            <button @click="leaveSession" class="leave-button">
+              Leave
+            </button>
           </div>
         </div>
       </div>
-
-      <!-- Session Info -->
-      <div class="session-info">
-        <div class="info-panel">
-          <h4>Session Details</h4>
-          <div class="detail-row">
-            <span class="label">Channel:</span>
-            <span class="value">{{ channelName }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Status:</span>
-            <span :class="['value', hostStreaming ? 'online' : 'offline']">
-              {{ hostStreaming ? 'Live' : 'Waiting' }}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Duration:</span>
-            <span class="value">{{ sessionDuration }}</span>
-          </div>
-        </div>
-        
-        <div class="connection-info">
-          <h4>Connection</h4>
-          <div class="detail-row">
-            <span class="label">Your Name:</span>
-            <span class="value">{{ viewerName }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Connection:</span>
-            <span class="value online">Connected</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Audio:</span>
-            <span :class="['value', audioMuted ? 'muted' : 'active']">
-              {{ audioMuted ? 'Muted' : 'Active' }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <button @click="leaveSession" class="leave-button">
-        Leave Session
-      </button>
     </div>
   </div>
 </template>
@@ -454,7 +407,7 @@ export default {
 <style scoped>
 .viewer-wrapper {
   width: 100%;
-  height: 100%;
+  height: 100vh;
   background: #1e2a44;
   color: white;
   display: flex;
@@ -469,12 +422,6 @@ export default {
   height: 100%;
   gap: 20px;
   padding: 40px;
-}
-
-.join-section h3 {
-  color: #ffffff;
-  margin-bottom: 20px;
-  text-align: center;
 }
 
 .viewer-input {
@@ -507,40 +454,31 @@ export default {
   cursor: not-allowed;
 }
 
-.channel-info {
-  background: #2c3e5a;
-  padding: 15px;
-  border-radius: 8px;
+.join-info {
   text-align: center;
-}
-
-.channel-info p {
-  margin: 8px 0;
   color: #d1d9e6;
   font-size: 14px;
 }
 
 .viewer-section {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
-  padding: 20px;
-  gap: 20px;
 }
 
 .stream-container {
   position: relative;
-  flex: 1;
+  width: 100%;
+  height: 100%;
   background: #000;
-  border-radius: 8px;
   overflow: hidden;
-  min-height: 400px;
 }
 
 .waiting-message {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   height: 100%;
   background: linear-gradient(135deg, #1e2a44 0%, #2c3e5a 100%);
 }
@@ -572,219 +510,119 @@ export default {
   background: #000;
 }
 
-
 .stream-overlay {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 15px;
-  /* Add these properties to contain the content */
+  padding: 20px;
   box-sizing: border-box;
-  overflow: hidden;
   z-index: 10;
 }
-
 
 .stream-info {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  /* Ensure content stays within bounds */
   width: 100%;
-  max-width: 100%;
-  flex-shrink: 0;
-  /* Prevent text from overflowing */
-  overflow: hidden;
 }
 
 .stream-type {
   background: rgba(40, 167, 69, 0.9);
   color: white;
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-weight: bold;
   font-size: 14px;
-  /* Prevent overflow */
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
-  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .instructor-info {
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   color: white;
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
-  /* Prevent overflow */
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
-  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
-
 
 .viewer-controls {
   display: flex;
-  gap: 10px;
-  align-self: flex-end;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
   pointer-events: auto;
-  /* Ensure controls stay within bounds */
-  width: 100%;
-  max-width: 100%;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  flex-shrink: 0;
 }
 
-
 .viewer-controls button {
-  padding: 8px 12px;
+  padding: 10px 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   background: rgba(59, 74, 107, 0.9);
   color: white;
   cursor: pointer;
-  transition: background 0.3s;
-  font-size: 12px;
-  /* Prevent button overflow */
+  transition: all 0.3s ease;
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
-  flex-shrink: 0;
-  min-width: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
 }
 
 .viewer-controls button:hover {
-  background: rgba(74, 111, 165, 0.9);
+  background: rgba(74, 111, 165, 0.95);
+  transform: translateY(-1px);
 }
 
 .viewer-controls button.muted {
   background: rgba(220, 53, 69, 0.9);
 }
 
-.session-info {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.info-panel, .connection-info {
-  background: #2c3e5a;
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.info-panel h4, .connection-info h4 {
-  margin: 0 0 15px 0;
-  color: #ffffff;
-  border-bottom: 1px solid #3b4a6b;
-  padding-bottom: 10px;
-}
-
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 12px 0;
-}
-
-.label {
-  color: #8a9ba8;
-  font-size: 14px;
-}
-
-.value {
-  color: #d1d9e6;
-  font-weight: 500;
-}
-
-.value.online {
-  color: #28a745;
-}
-
-.value.offline {
-  color: #6c757d;
-}
-
-.value.active {
-  color: #28a745;
-}
-
-.value.muted {
-  color: #dc3545;
+.viewer-controls button.muted:hover {
+  background: rgba(220, 53, 69, 0.95);
 }
 
 .leave-button {
-  padding: 12px 24px;
-  background: #dc3545;
-  border: none;
-  border-radius: 4px;
-  color: white;
-  cursor: pointer;
-  align-self: center;
-  font-size: 16px;
-  transition: background 0.3s;
+  background: rgba(220, 53, 69, 0.9) !important;
 }
 
 .leave-button:hover {
-  background: #c82333;
+  background: rgba(220, 53, 69, 0.95) !important;
 }
 
 @media (max-width: 768px) {
-  .session-info {
-    grid-template-columns: 1fr;
-  }
-  
-  .viewer-controls {
-    flex-direction: column;
-    width: 100%;
-  }
-  
-  .viewer-controls button {
-    width: 100%;
+  .stream-overlay {
+    padding: 15px;
   }
   
   .stream-info {
     flex-direction: column;
     gap: 10px;
-  }
-}
-
-/* Additional mobile responsiveness for overlay */
-@media (max-width: 768px) {
-  .stream-overlay {
-    padding: 10px;
-  }
-  
-  .stream-info {
-    flex-direction: column;
-    gap: 8px;
     align-items: flex-start;
   }
   
   .stream-type,
   .instructor-info {
-    max-width: calc(100% - 20px);
     font-size: 12px;
     padding: 6px 10px;
   }
   
   .viewer-controls {
-    justify-content: center;
+    flex-wrap: wrap;
     gap: 8px;
   }
   
   .viewer-controls button {
-    font-size: 11px;
-    padding: 6px 10px;
+    font-size: 12px;
+    padding: 8px 12px;
+    min-width: 80px;
   }
 }
 </style>
