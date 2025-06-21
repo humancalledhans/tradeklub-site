@@ -64,6 +64,7 @@
                         role="viewer" 
                         ref="liveStreamViewer" 
                         class="full-size"
+                        @request-login="handleLoginRequest"
                         />
                     </div>
                 </div>
@@ -213,6 +214,9 @@ export default {
         },
     },
     methods: {
+        handleLoginRequest(){
+            this.showAuthPrompt = true;
+        },
         async login() {
             const auth = getAuth();
             try {
