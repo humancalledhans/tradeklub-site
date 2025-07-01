@@ -1,25 +1,28 @@
 <template>
-  <div >
+  <div>
+    <!-- Authentication Check -->
+    <div v-if="!isUserLoggedIn" class="auth-section" :style="{ height: `${parentHeight}px` }">
+      <div class="auth-content">
+        <h3>Authentication Required</h3>
+        <p>Please log in to access the live streaming session</p>
+        <!-- <button @click="triggerParentLogin" class="login-button">
+          Login
+        </button> -->
+      </div>
+    </div>
+
     <!-- Name input UI before joining -->
-    <div v-if="!hasJoined" class="join-section" :style="{ height: `${parentHeight}px` }">
-      <input
-        v-model="userName"
-        placeholder="Enter your name..."
-        @keyup.enter="joinRoom"
-        class="name-input"
-      />
+    <div v-else-if="!hasJoined" class="join-section" :style="{ height: `${parentHeight}px` }">
+      <input v-model="userName" placeholder="Enter your name..." @keyup.enter="joinRoom" class="name-input" />
       <button @click="joinRoom" :disabled="!userName.trim()">Join Room</button>
     </div>
 
     <!-- Chat UI after joining -->
-    <div v-if="hasJoined" class="chat-wrapper" :style="{ width: `${width}px`, height: `${parentHeight}px` }">
+    <div v-else-if="hasJoined" class="chat-wrapper" :style="{ width: `${width}px`, height: `${parentHeight}px` }">
       <div class="chat-container">
         <div id="chat-messages" ref="chatMessages" class="chat-messages">
-          <div
-            v-for="(message, index) in messages"
-            :key="index"
-            :class="['message-box', { 'self-message': message.senderName === userName }]"
-          >
+          <div v-for="(message, index) in messages" :key="index"
+            :class="['message-box', { 'self-message': message.senderName === userName }]">
             <span class="sender-name">{{ message.senderName }}</span>: {{ message.text }}
           </div>
         </div>
@@ -29,16 +32,10 @@
           <button class="menu-button" @click="toggleParticipantsMenu">•••</button>
           <div v-if="showParticipantsMenu" class="participants-menu">
             <div class="tabs">
-              <button
-                :class="{ active: activeTab === 'broadcasters' }"
-                @click="activeTab = 'broadcasters'"
-              >
+              <button :class="{ active: activeTab === 'broadcasters' }" @click="activeTab = 'broadcasters'">
                 Broadcasters ({{ broadcasters.length }})
               </button>
-              <button
-                :class="{ active: activeTab === 'members' }"
-                @click="activeTab = 'members'"
-              >
+              <button :class="{ active: activeTab === 'members' }" @click="activeTab = 'members'">
                 Members ({{ members.length }})
               </button>
             </div>
@@ -88,9 +85,15 @@ export default {
       hasJoined: false,
       showParticipantsMenu: false,
       activeTab: 'broadcasters',
+      // Authentication state
+      isUserLoggedIn: false
     };
   },
   async mounted() {
+
+    // Check authentication status first
+    this.checkAuthStatus();
+
     this.userId = localStorage.getItem('user_id');
     if (!this.userId) {
       if (window.crypto && window.crypto.randomUUID) {
@@ -114,6 +117,28 @@ export default {
     }
   },
   methods: {
+    checkAuthStatus() {
+      // Check for user in sessionStorage (you can modify this based on your auth implementation)
+      const user = sessionStorage.getItem('user');
+      this.isUserLoggedIn = !!user;
+
+      // Alternative approaches:
+      // const token = localStorage.getItem('authToken');
+      // this.isUserLoggedIn = !!token;
+
+      // Or check for a specific user property:
+      // const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
+      // this.isUserLoggedIn = userData.authenticated === true;
+
+      console.log('Auth status:', this.isUserLoggedIn);
+    },
+
+    triggerParentLogin() {
+      // Emit an event to the parent component to trigger login
+      this.$emit('request-login');
+    },
+
+
     async fetchAuthToken(userId) {
       try {
         const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
@@ -267,7 +292,7 @@ export default {
     },
     closeParticipantsMenu(event) {
       if (this.showParticipantsMenu && !this.$el.querySelector('.participants-menu')?.contains(event.target) &&
-          !this.$el.querySelector('.menu-button')?.contains(event.target)) {
+        !this.$el.querySelector('.menu-button')?.contains(event.target)) {
         this.showParticipantsMenu = false;
         console.log('Menu closed via click outside');
       }
@@ -364,7 +389,8 @@ export default {
   gap: 10px;
   padding-top: 15px;
   border-top: 1px solid #3b4a6b;
-  position: relative; /* Anchor for menu positioning */
+  position: relative;
+  /* Anchor for menu positioning */
 }
 
 .chat-input input {
@@ -400,9 +426,12 @@ export default {
 
 .participants-menu {
   position: absolute;
-  bottom: 100%; /* Position above the input */
-  right: 0; /* Align with the right edge of the menu button */
-  transform: translateY(-10px); /* Slight offset from the button */
+  bottom: 100%;
+  /* Position above the input */
+  right: 0;
+  /* Align with the right edge of the menu button */
+  transform: translateY(-10px);
+  /* Slight offset from the button */
   background: #2c3e5a;
   border: 1px solid #3b4a6b;
   border-radius: 4px;
@@ -450,5 +479,76 @@ export default {
 
 .tab-content li {
   margin: 5px 0;
+}
+
+.auth-content {
+  text-align: center;
+  background: #2c3e5a;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  width: 100%;
+}
+
+.auth-content h3 {
+  margin-bottom: 16px;
+  color: #d1d9e6;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.auth-content p {
+  margin-bottom: 24px;
+  color: #a1b1c6;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.login-button {
+  padding: 12px 24px;
+  background: #4a6fa5;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s ease;
+  min-width: 120px;
+}
+
+.login-button:hover {
+  background: #5a7fb5;
+}
+
+.login-button:active {
+  transform: translateY(1px);
+}
+
+.auth-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  box-sizing: border-box;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .auth-content {
+    padding: 20px;
+    margin: 0 10px;
+  }
+
+  .auth-content h3 {
+    font-size: 20px;
+  }
+
+  .auth-content p {
+    font-size: 14px;
+  }
 }
 </style>

@@ -59,7 +59,7 @@
                             </div>
                             <div class="right-half" ref="chatContainer">
                                 <LiveStreamViewer :width="parentWidth" :height="parentHeight" role="viewer"
-                                    ref="liveStreamViewer" />
+                                    @request-login="handleLoginRequest" ref="liveStreamViewer" />
                             </div>
                         </div>
                     </div>

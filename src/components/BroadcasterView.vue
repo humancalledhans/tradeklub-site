@@ -13,16 +13,11 @@
 
     <!-- Original Join Section (only show if user is logged in) -->
     <div v-else-if="!joined" class="join-section">
-      <input 
-        v-model="viewerName" 
-        placeholder="Enter your name..." 
-        @keyup.enter="joinAsViewer"
-        class="viewer-input" 
-      />
+      <input v-model="viewerName" placeholder="Enter your name..." @keyup.enter="joinAsViewer" class="viewer-input" />
       <button @click="joinAsViewer" :disabled="!viewerName.trim()">
         Join Session
       </button>
-      
+
       <div class="join-info">
         <p>🔇 Your camera and microphone will stay off</p>
       </div>
@@ -39,35 +34,29 @@
             <p>The live session will begin shortly</p>
           </div>
         </div>
-        
-        <video 
-          v-show="hostStreaming"
-          ref="hostVideo" 
-          autoplay 
-          playsinline 
-          class="host-video"
-        ></video>
-        
+
+        <video v-show="hostStreaming" ref="hostVideo" autoplay playsinline class="host-video"></video>
+
         <!-- Stream Info Overlay -->
         <div v-if="hostStreaming" class="stream-overlay">
           <div class="stream-info">
             <span v-if="hostScreenSharing" class="stream-type">🖥️ Screen Share</span>
             <span v-else class="stream-type">📹 Camera</span>
-            
+
             <div class="instructor-info">
               👨‍🏫 {{ hostName || 'Instructor' }}
             </div>
           </div>
-          
+
           <div class="viewer-controls">
             <button @click="toggleAudio" :class="{ muted: audioMuted }">
               {{ audioMuted ? '🔇 Unmute' : '🔊 Mute' }}
             </button>
-            
+
             <button @click="toggleFullscreen" class="fullscreen-btn">
               {{ isFullscreen ? '🔲 Exit Fullscreen' : '⛶ Fullscreen' }}
             </button>
-            
+
             <button @click="leaveSession" class="leave-button">
               Leave
             </button>
@@ -87,26 +76,26 @@ export default {
     return {
       // Agora client
       client: null,
-      
+
       // Connection state
       joined: false,
       viewerName: localStorage.getItem('viewer_name') || '',
       channelName: 'trading-room', // Fixed to match admin
-      
+
       // Host state
       hostStreaming: false,
       hostScreenSharing: false,
       hostName: '',
       hostUser: null,
-      
+
       // Viewer controls
       audioMuted: false,
       isFullscreen: false,
-      
+
       // Session info
       sessionStartTime: null,
       sessionDuration: '00:00:00',
-      
+
       // Agora credentials
       appId: process.env.VUE_APP_AGORA_APP_ID,
       token: null,
@@ -115,31 +104,31 @@ export default {
       isUserLoggedIn: false
     };
   },
-  
+
   async mounted() {
     // Check authentication status
     this.checkAuthStatus();
-    
+
     // Initialize Agora client only if user is logged in
     if (this.isUserLoggedIn) {
       try {
-        this.client = AgoraRTC.createClient({ 
-          mode: "rtc", 
-          codec: "vp8" 
+        this.client = AgoraRTC.createClient({
+          mode: "rtc",
+          codec: "vp8"
         });
         this.setupEventListeners();
       } catch (error) {
         console.error('Failed to initialize Agora client:', error);
       }
     }
-    
+
     // Setup fullscreen detection
     document.addEventListener('fullscreenchange', this.handleFullscreenChange);
 
     // Listen for storage changes to update auth status
     window.addEventListener('storage', this.handleStorageChange);
   },
-  
+
   beforeUnmount() {
     if (this.joined) {
       this.leaveSession();
@@ -148,12 +137,12 @@ export default {
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
     window.removeEventListener('storage', this.handleStorageChange);
   },
-  
+
   methods: {
     checkAuthStatus() {
       const user = sessionStorage.getItem('user');
       this.isUserLoggedIn = !!user;
-      
+
       // If user just logged in and we haven't initialized Agora yet, do it now
       if (this.isUserLoggedIn && !this.client) {
         this.initializeAgoraClient();
@@ -162,9 +151,9 @@ export default {
 
     async initializeAgoraClient() {
       try {
-        this.client = AgoraRTC.createClient({ 
-          mode: "rtc", 
-          codec: "vp8" 
+        this.client = AgoraRTC.createClient({
+          mode: "rtc",
+          codec: "vp8"
         });
         this.setupEventListeners();
       } catch (error) {
@@ -189,7 +178,7 @@ export default {
         this.hostUser = user;
         this.hostName = user.uid;
       });
-      
+
       // When host leaves
       this.client.on("user-left", (user) => {
         console.log("User left:", user.uid);
@@ -197,37 +186,37 @@ export default {
         this.hostScreenSharing = false;
         this.hostUser = null;
       });
-      
+
       // When host starts streaming
       this.client.on("user-published", async (user, mediaType) => {
         console.log("Host published:", user.uid, mediaType);
-        
+
         try {
           // ⭐ FIX: Get the remote user from client's remote users list
           const remoteUser = this.client.remoteUsers.find(u => u.uid === user.uid);
-          
+
           if (!remoteUser) {
             console.error("Remote user not found in client.remoteUsers");
             return;
           }
-          
+
           // Subscribe to the host's stream using the remote user object
           await this.client.subscribe(remoteUser, mediaType);
           console.log(`Successfully subscribed to ${mediaType} from ${user.uid}`);
-          
+
           if (mediaType === "video") {
             // Play the host's video
             const videoTrack = remoteUser.videoTrack;
             if (videoTrack && this.$refs.hostVideo) {
               videoTrack.play(this.$refs.hostVideo);
-              
+
               this.hostStreaming = true;
               this.hostUser = remoteUser; // Use the remote user object
               this.hostName = remoteUser.uid;
-              
+
               // Detect if it's screen sharing (heuristic)
               this.detectScreenShare();
-              
+
               // Start session timer if not already started
               if (!this.sessionStartTime) {
                 this.sessionStartTime = Date.now();
@@ -235,7 +224,7 @@ export default {
               }
             }
           }
-          
+
           if (mediaType === "audio") {
             // Audio will play automatically
             const audioTrack = remoteUser.audioTrack;
@@ -243,34 +232,34 @@ export default {
               audioTrack.play();
             }
           }
-          
+
         } catch (error) {
           console.error('Failed to subscribe to host:', error);
         }
       });
-      
+
       // When host stops streaming
       this.client.on("user-unpublished", (user, mediaType) => {
         console.log("Host unpublished:", user.uid, mediaType);
-        
+
         if (mediaType === "video") {
           this.hostStreaming = false;
           this.hostScreenSharing = false;
         }
       });
-      
+
       // Network quality monitoring
       this.client.on("network-quality", (stats) => {
         // Could show network quality indicator here
         console.log("Network quality:", stats);
       });
-      
+
       // ⭐ ADD: Additional error handling
       this.client.on("exception", (event) => {
         console.error("Agora exception:", event);
       });
     },
-    
+
     async joinAsViewer() {
       if (!this.isUserLoggedIn) {
         alert('Please log in first');
@@ -281,10 +270,10 @@ export default {
         alert('Please enter your name');
         return;
       }
-      
+
       try {
         console.log('Getting viewer token...');
-        
+
         // Get token from backend
         const tokenResponse = await fetch(`${process.env.VUE_APP_BACKEND_URL || 'http://localhost:8000'}/generate-agora-token`, {
           method: 'POST',
@@ -297,43 +286,43 @@ export default {
             role: 'audience'
           })
         });
-        
+
         if (!tokenResponse.ok) {
           throw new Error(`Failed to get token: ${tokenResponse.status}`);
         }
-        
+
         const tokenData = await tokenResponse.json();
         console.log('Viewer token received', tokenData);
-        
+
         // Use the UID returned from the backend
         const uidToUse = parseInt(tokenData.uid);
-        
+
         console.log(`Joining channel: ${this.channelName} with UID: ${uidToUse}`);
-        
+
         await this.client.join(
-          tokenData.app_id, 
-          this.channelName, 
+          tokenData.app_id,
+          this.channelName,
           tokenData.token,
           uidToUse
         );
-        
+
         console.log(`Successfully joined as viewer with UID: ${uidToUse}`);
         console.log('Remote users currently in channel:', this.client.remoteUsers.map(u => u.uid));
-        
+
         this.joined = true;
-        
+
         // Store viewer name
         localStorage.setItem('viewer_name', this.viewerName);
-        
+
         // ⭐ ADD: Check if host is already streaming
         setTimeout(() => {
           console.log('Checking for existing remote users after join...');
           console.log('Remote users:', this.client.remoteUsers);
-          
+
           // Try to subscribe to any existing streams
           this.client.remoteUsers.forEach(async (user) => {
             console.log(`Found existing user: ${user.uid}`);
-            
+
             if (user.hasVideo && user.videoTrack) {
               console.log(`Subscribing to existing video from ${user.uid}`);
               try {
@@ -346,7 +335,7 @@ export default {
                 console.error('Failed to subscribe to existing video:', error);
               }
             }
-            
+
             if (user.hasAudio && user.audioTrack) {
               console.log(`Subscribing to existing audio from ${user.uid}`);
               try {
@@ -358,36 +347,36 @@ export default {
             }
           });
         }, 1000); // Give a second for the channel state to settle
-        
+
       } catch (error) {
         console.error('Failed to join session:', error);
         alert('Failed to join session: ' + error.message);
       }
     },
-    
+
     async leaveSession() {
       try {
         // Leave the channel
         await this.client.leave();
-        
+
         // Reset state
         this.joined = false;
         this.hostStreaming = false;
         this.hostScreenSharing = false;
         this.hostUser = null;
         this.stopSessionTimer();
-        
+
         console.log('Left session');
-        
+
       } catch (error) {
         console.error('Failed to leave session:', error);
       }
     },
-    
+
     toggleAudio() {
       // Find the host user in remote users
       const hostUser = this.client.remoteUsers.find(user => user.audioTrack);
-      
+
       if (hostUser && hostUser.audioTrack) {
         if (this.audioMuted) {
           hostUser.audioTrack.play();
@@ -402,10 +391,10 @@ export default {
         console.log("No audio track available from host");
       }
     },
-    
+
     toggleFullscreen() {
       const videoContainer = this.$refs.hostVideo?.parentElement;
-      
+
       if (!this.isFullscreen) {
         if (videoContainer?.requestFullscreen) {
           videoContainer.requestFullscreen();
@@ -416,11 +405,11 @@ export default {
         }
       }
     },
-    
+
     handleFullscreenChange() {
       this.isFullscreen = !!document.fullscreenElement;
     },
-    
+
     detectScreenShare() {
       // This is a heuristic - screen shares often have different characteristics
       // You could also use track metadata if available
@@ -429,7 +418,7 @@ export default {
         if (video) {
           // Screen shares typically have desktop-like aspect ratios
           const aspectRatio = video.videoWidth / video.videoHeight;
-          
+
           // Desktop screens are usually wider (16:9, 16:10, etc.)
           // Webcams are usually more square-ish (4:3, 16:9 but smaller)
           if (aspectRatio > 1.5 && video.videoWidth > 1280) {
@@ -437,12 +426,12 @@ export default {
           } else {
             this.hostScreenSharing = false;
           }
-          
+
           console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight, 'Aspect ratio:', aspectRatio);
         }
       }, 1000);
     },
-    
+
     startSessionTimer() {
       this.sessionTimer = setInterval(() => {
         if (this.sessionStartTime) {
@@ -450,12 +439,12 @@ export default {
           const hours = Math.floor(elapsed / 3600000);
           const minutes = Math.floor((elapsed % 3600000) / 60000);
           const seconds = Math.floor((elapsed % 60000) / 1000);
-          
+
           this.sessionDuration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
       }, 1000);
     },
-    
+
     stopSessionTimer() {
       if (this.sessionTimer) {
         clearInterval(this.sessionTimer);
@@ -614,8 +603,13 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .host-video {
@@ -716,28 +710,28 @@ export default {
   .auth-section {
     padding: 20px;
   }
-  
+
   .stream-overlay {
     padding: 15px;
   }
-  
+
   .stream-info {
     flex-direction: column;
     gap: 10px;
     align-items: flex-start;
   }
-  
+
   .stream-type,
   .instructor-info {
     font-size: 12px;
     padding: 6px 10px;
   }
-  
+
   .viewer-controls {
     flex-wrap: wrap;
     justify-content: center;
   }
-  
+
   .viewer-controls button {
     font-size: 12px;
     padding: 8px 12px;
