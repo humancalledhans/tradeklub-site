@@ -393,21 +393,136 @@ export default {
     },
 
     toggleFullscreen() {
-      const videoContainer = this.$refs.hostVideo?.parentElement;
+      // Get the video element or its container
+      const videoElement = this.$refs.hostVideo;
+      const container = videoElement?.closest('.stream-container');
 
       if (!this.isFullscreen) {
-        if (videoContainer?.requestFullscreen) {
-          videoContainer.requestFullscreen();
-        }
+        this.enterFullscreen(videoElement, container);
       } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
+        this.exitFullscreen();
+      }
+    },
+
+    async enterFullscreen(videoElement, container) {
+      try {
+        // Priority order for fullscreen methods (mobile compatibility)
+        const element = videoElement || container;
+
+        if (!element) {
+          console.warn('No element available for fullscreen');
+          return;
         }
+
+        // Try different fullscreen methods in order of mobile compatibility
+        if (element.requestFullscreen) {
+          await element.requestFullscreen();
+        } else if (element.webkitRequestFullscreen) {
+          // Safari/WebKit (iOS Safari, older Android browsers)
+          await element.webkitRequestFullscreen();
+        } else if (element.webkitEnterFullscreen) {
+          // iOS Safari video-specific method
+          await element.webkitEnterFullscreen();
+        } else if (element.mozRequestFullScreen) {
+          // Firefox
+          await element.mozRequestFullScreen();
+        } else if (element.msRequestFullscreen) {
+          // IE/Edge
+          await element.msRequestFullscreen();
+        } else {
+          console.warn('Fullscreen not supported on this device');
+          // Fallback: try to simulate fullscreen with CSS
+          this.simulateFullscreen(element);
+        }
+      } catch (error) {
+        console.error('Fullscreen request failed:', error);
+        // iOS often blocks fullscreen, so provide visual feedback
+        this.showFullscreenError();
+      }
+    },
+
+    async exitFullscreen() {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          await document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          await document.msExitFullscreen();
+        } else {
+          // Remove simulated fullscreen
+          this.removeSimulatedFullscreen();
+        }
+      } catch (error) {
+        console.error('Exit fullscreen failed:', error);
+      }
+    },
+
+    simulateFullscreen(element) {
+      // CSS-based fullscreen simulation for devices that don't support native fullscreen
+      element.classList.add('simulated-fullscreen');
+      document.body.classList.add('fullscreen-active');
+      this.isFullscreen = true;
+
+      // Lock screen orientation if possible
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {
+          console.log('Screen orientation lock not supported');
+        });
+      }
+    },
+
+    removeSimulatedFullscreen() {
+      const element = this.$refs.hostVideo?.closest('.stream-container');
+      if (element) {
+        element.classList.remove('simulated-fullscreen');
+      }
+      document.body.classList.remove('fullscreen-active');
+      this.isFullscreen = false;
+    },
+
+    showFullscreenError() {
+      // Show user-friendly message for failed fullscreen attempts
+      const message = 'Fullscreen may not be available. Try rotating your device or using the browser\'s fullscreen option.';
+
+      // You could show a toast notification here instead of alert
+      if (window.showToast) {
+        window.showToast(message);
+      } else {
+        console.log(message);
+        // Optionally show a temporary overlay message
       }
     },
 
     handleFullscreenChange() {
-      this.isFullscreen = !!document.fullscreenElement;
+      // Enhanced fullscreen detection
+      const isFullscreen = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement ||
+        document.querySelector('.simulated-fullscreen')
+      );
+
+      this.isFullscreen = isFullscreen;
+
+      // Handle orientation changes in fullscreen
+      if (isFullscreen && window.innerHeight < window.innerWidth) {
+        // Landscape mode - optimize video display
+        this.optimizeForLandscape();
+      }
+    },
+
+    optimizeForLandscape() {
+      // Ensure video fills the screen properly in landscape
+      const video = this.$refs.hostVideo;
+      if (video) {
+        video.style.objectFit = 'contain';
+        video.style.width = '100%';
+        video.style.height = '100%';
+      }
     },
 
     detectScreenShare() {
