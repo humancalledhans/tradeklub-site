@@ -1,34 +1,7 @@
 <template>
     <div>
-        <!-- Login Prompt for the whole page -->
-        <div v-if="!user && showAuthPrompt" class="auth-prompt">
-            <h3>Please login to access Live TV</h3>
-
-            <!-- First time login prompt -->
-            <p v-if="firstTimeLogin" class="first-time-login-prompt">
-                First time logging in? Check your email for a temporary password.
-            </p>
-
-            <input v-model="email" placeholder="Email" type="email" class="login-input" />
-            <input v-model="password" placeholder="Password" type="password" class="login-input" @keyup.enter="login" />
-            <button @click="login" class="login-button">Login</button>
-            <button @click="register" class="register-button">Register</button>
-            <button @click="resetPassword" class="reset-password-button">Reset Password</button>
-
-            <!-- Reset Password Modal -->
-            <div v-if="resetPasswordMode" class="modal-overlay">
-                <div class="modal-content">
-                    <h3>Reset Password</h3>
-                    <input v-model="emailForReset" placeholder="Enter your email address" type="email"
-                        class="login-input" />
-                    <button @click="resetPassword" class="reset-password-submit">Send Reset Email</button>
-                    <button @click="resetPasswordMode = false" class="modal-close">Cancel</button>
-                </div>
-            </div>
-        </div>
-
         <!-- If user is logged in, show the Live TV page -->
-        <div class="live-tv-layout" v-else>
+        <div class="live-tv-layout">
             <!-- First Column -->
             <div class="column first-column">
                 <!-- Top Large Box (2/3 Height of First Column) -->
@@ -38,7 +11,7 @@
                     </div>
                     <div class="tv-box-wrapper large" style="position:relative;">
                         <BroadcasterView role="viewer" ref="liveStreamViewer" class="full-size"
-                            @request-login="handleLoginRequest" />
+                            @request-login="redirectToLoginPage" />
                     </div>
                 </div>
                 <!-- Bottom Small Box (1/3 Height of First Column) -->
@@ -59,7 +32,7 @@
                             </div>
                             <div class="right-half" ref="chatContainer">
                                 <LiveStreamViewer :width="parentWidth" :height="parentHeight" role="viewer"
-                                    @request-login="handleLoginRequest" ref="liveStreamViewer" />
+                                    @request-login="redirectToLoginPage" ref="liveStreamViewer" />
                             </div>
                         </div>
                     </div>
@@ -131,7 +104,6 @@ export default {
             resetPasswordMode: false,
             showMenu: false,
             parentHeightMobile: 0,
-            showAuthPrompt: false,
             widgetLoadingStates: {},
             scrollPaused: false,
             widgetInitQueue: [],
@@ -155,9 +127,6 @@ export default {
         },
     },
     methods: {
-        handleLoginRequest() {
-            this.showAuthPrompt = true;
-        },
         async login() {
             const auth = getAuth();
             try {
@@ -198,6 +167,15 @@ export default {
         cancelResetPassword() {
             this.resetPasswordMode = false;
         },
+        
+        // NEW METHOD: Redirect to login page instead of showing overlay
+        redirectToLoginPage() {
+            // Store current path for redirect after login
+            sessionStorage.setItem('redirectAfterLogin', this.$route.fullPath);
+            // Redirect to login page
+            this.$router.push('/login');
+        },
+
         isMobile() {
             return window.innerWidth <= 768;
         },
@@ -572,9 +550,12 @@ export default {
         const urlParams = new URLSearchParams(window.location.search);
         const authParam = urlParams.get('auth');
 
+        // MODIFIED: Instead of showing overlay, redirect to login page after 10 seconds
         setTimeout(() => {
             if (!authParam || authParam !== '23901:kwpDFLQWK9102882913') {
-                this.showAuthPrompt = true;
+                if (!this.user) {
+                    this.redirectToLoginPage();
+                }
             }
         }, 10000);
     },
@@ -902,112 +883,5 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
-}
-
-.modal-content {
-    background: white;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    max-width: 400px;
-    width: 90%;
-}
-
-.login-input {
-    width: 100%;
-    padding: 12px;
-    margin: 10px 0;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 16px;
-    box-sizing: border-box;
-}
-
-.login-button,
-.register-button {
-    padding: 12px 20px;
-    background-color: #162D5D;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    margin: 10px 0;
-    width: 100%;
-}
-
-.login-button:hover,
-.register-button:hover {
-    background-color: #315297;
-}
-
-.reset-password-button {
-    padding: 12px 20px;
-    background-color: #FF7043;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    margin: 10px 0;
-    width: 100%;
-}
-
-.reset-password-button:hover {
-    background-color: #315297;
-}
-
-.first-time-login-prompt {
-    color: #FF9800;
-    font-size: 14px;
-    margin-bottom: 10px;
-}
-
-.reset-password-submit,
-.modal-close {
-    padding: 10px 20px;
-    font-size: 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s ease, color 0.3s ease, transform 0.1s ease;
-    margin: 5px;
-    outline: none;
-}
-
-.reset-password-submit {
-    background-color: #1976D2;
-    color: white;
-}
-
-.reset-password-submit:hover {
-    background-color: #1565C0;
-    transform: translateY(-1px);
-}
-
-.reset-password-submit:active {
-    transform: translateY(1px);
-}
-
-.modal-close {
-    background-color: #E0E0E0;
-    color: #333;
-}
-
-.modal-close:hover {
-    background-color: #BDBDBD;
-    color: #000;
-    transform: translateY(-1px);
-}
-
-.modal-close:active {
-    transform: translateY(1px);
-}
-
-.full-size {
-    width: 100%;
-    height: 100%;
-    display: block;
 }
 </style>
