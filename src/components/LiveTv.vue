@@ -136,8 +136,23 @@ export default {
             scrollPaused: false,
             widgetInitQueue: [],
             isProcessing: false,
+            widgetsInitialized: false,
         };
     },
+    // watch: {
+    //     user: {
+    //         handler(newUser, oldUser) {
+    //             if (newUser && !oldUser && !this.widgetsInitialized) {
+    //                 // User just logged in and widgets haven't been initialized yet
+    //                 console.log("User logged in, initializing widgets...");
+    //                 setTimeout(() => {
+    //                     this.initializeAllWidgetsAfterLogin();
+    //                 }, 300);
+    //             }
+    //         },
+    //         immediate: false
+    //     }
+    // },
     computed: {
         liveStreamUrl() {
             return `https://www.youtube.com/embed/99xP-Cpe1z4?autoplay=1&controls=0&showinfo=0`;
@@ -155,6 +170,80 @@ export default {
         },
     },
     methods: {
+        delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        },
+        async initializeWidgetsSequentially() {
+            console.log("Starting sequential widget initialization...");
+            
+            // 1. Initialize main trading view widget first
+            await this.initializeTradingViewWidgetWithRetry();
+            await this.delay(300);
+            
+            // 2. Initialize events widget
+            await this.initializeTradingViewEventsWidgetWithRetry();
+            await this.delay(300);
+            
+            // 3. Initialize mini chart widgets
+            await this.initializeTradingViewMiniChartWidgetsWithRetry();
+            await this.delay(500);
+            
+            // 4. Initialize RSS widget
+            this.initializeRssWidget();
+            this.updateChatDimensions();
+            
+            // 5. Handle mobile dimensions if needed
+            if (this.isMobile()) {
+                this.calculateMobileDimensions();
+            }
+            
+            // 6. Finally, start the scrolling widgets
+            await this.delay(1000);
+            if (this.$refs.scrollContainer) {
+                console.log("Starting preload clones after login...");
+                await this.preloadClones();
+                await this.delay(500);
+                console.log("Starting auto-scroll after login...");
+                this.startAutoScroll();
+            }
+        },
+        async initializeTradingViewEventsWidgetWithRetry(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const container = this.$refs.tradingViewEventsWidget;
+                    if (!container) {
+                        throw new Error("TradingView events widget container not found");
+                    }
+                    
+                    container.innerHTML = `<div class="tradingview-widget-container__widget"></div>`;
+                    await this.$nextTick();
+                    
+                    const script = document.createElement("script");
+                    script.type = "text/javascript";
+                    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-events.js";
+                    script.async = true;
+                    script.text = JSON.stringify({
+                        width: "100%",
+                        height: "100%",
+                        colorTheme: "dark",
+                        isTransparent: false,
+                        locale: "en",
+                        importanceFilter: "-1,0,1",
+                        countryFilter: "ar,au,br,ca,cn,fr,de,in,id,it,jp,kr,mx,ru,sa,za,tr,gb,us,eu",
+                    });
+                    
+                    container.appendChild(script);
+                    console.log("Events widget initialized successfully");
+                    return;
+                    
+                } catch (error) {
+                    console.error(`Events widget initialization attempt ${i + 1} failed:`, error);
+                    if (i === retries - 1) throw error;
+                    await this.delay(1000);
+                }
+            }
+        },
+
         handleLoginRequest() {
             this.showAuthPrompt = true;
         },
@@ -165,12 +254,310 @@ export default {
                 this.user = userCredential.user;
                 sessionStorage.setItem('user', JSON.stringify(this.user));
                 this.firstTimeLogin = false;
+                
+                console.log("Login successful - widgets are already loaded!");
+                // Widgets are already initialized, just hide the auth prompt
+                
             } catch (error) {
                 console.log("error 99231", error);
                 console.error("Login Error:", error.message);
                 alert("Login failed. Please check your credentials.");
             }
         },
+        async initializeAllWidgets() {
+            console.log("Starting widget initialization...");
+            
+            try {
+                // Wait for DOM to be ready
+                await this.$nextTick();
+                await this.delay(500);
+                
+                // Initialize RSS and chat components
+                this.initializeRssWidget();
+                this.updateChatDimensions();
+                
+                if (this.isMobile()) {
+                    this.calculateMobileDimensions();
+                }
+                
+                // Initialize main TradingView widget
+                console.log("Initializing main TradingView widget...");
+                await this.initializeTradingViewWidget();
+                await this.delay(1000);
+                
+                // Initialize events widget
+                console.log("Initializing events widget...");
+                await this.initializeTradingViewEventsWidget();
+                await this.delay(1000);
+                
+                // Initialize mini widgets one by one
+                console.log("Initializing mini widgets...");
+                for (let index = 0; index < this.widgetSymbols.length; index++) {
+                    await this.initializeSingleMiniWidget(index);
+                    await this.delay(500); // Wait between each widget
+                }
+                
+                // Start scrolling
+                await this.delay(1000);
+                if (this.$refs.scrollContainer) {
+                    console.log("Starting scroll functionality...");
+                    this.startAutoScroll();
+                }
+                
+                this.widgetsInitialized = true;
+                console.log("All widgets initialized!");
+                
+            } catch (error) {
+                console.error("Error initializing widgets:", error);
+            }
+        },
+        async initializeSingleMiniWidget(index) {
+            const symbol = this.widgetSymbols[index];
+            const widgetContainer = this.$refs[`tradingViewWidget${index}`]?.[0];
+            
+            if (!widgetContainer) {
+                console.warn(`Widget container ${index} not found`);
+                return;
+            }
+            
+            console.log(`Initializing widget ${index} with symbol ${symbol}`);
+            
+            try {
+                widgetContainer.innerHTML = "";
+                await this.$nextTick();
+                
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+                script.async = true;
+                script.text = JSON.stringify({
+                    symbol: symbol,
+                    width: "100%",
+                    height: "100%",
+                    locale: "en",
+                    dateRange: "12M",
+                    colorTheme: "dark",
+                    isTransparent: false,
+                    autosize: true,
+                    largeChartUrl: "",
+                });
+                
+                widgetContainer.appendChild(script);
+                console.log(`Widget ${index} (${symbol}) initialized`);
+                
+            } catch (error) {
+                console.error(`Error initializing widget ${index} (${symbol}):`, error);
+            }
+        },
+        async initializeAllWidgetsAfterLogin() {
+            if (this.widgetsInitialized) {
+                console.log("Widgets already initialized, skipping...");
+                return;
+            }
+
+            console.log("Initializing widgets after login...");
+            
+            try {
+                // Wait for layout to be fully rendered
+                await this.$nextTick();
+                await this.delay(200); // Give DOM time to stabilize
+                
+                // Initialize widgets in sequence to prevent conflicts
+                await this.initializeWidgetsSequentially();
+                
+                this.widgetsInitialized = true;
+                console.log("All widgets initialized successfully");
+                
+            } catch (error) {
+                console.error("Error initializing widgets after login:", error);
+                // Reset flag so user can try again
+                this.widgetsInitialized = false;
+            }
+        },
+
+        async initializeTradingViewWidgetWithRetry(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const container = this.$refs.tradingViewWidget;
+                    if (!container) {
+                        throw new Error("TradingView widget container not found");
+                    }
+                    
+                    // Generate unique ID
+                    const uniqueId = `tradingview-widget-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    
+                    // Clear any existing content
+                    container.innerHTML = `
+                        <div style="height:100%;width:100%">
+                            <div style="height:100%;width:100%" id="${uniqueId}"></div>
+                        </div>`;
+                    
+                    await this.$nextTick();
+                    await this.delay(100); // Give DOM time to update
+                    
+                    const widgetContainer = container.querySelector(`#${uniqueId}`);
+                    
+                    if (!widgetContainer) {
+                        throw new Error("Widget container element not found after creation");
+                    }
+                    
+                    const script = document.createElement("script");
+                    script.type = "text/javascript";
+                    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+                    script.async = true;
+                    script.text = JSON.stringify({
+                        "autosize": true,
+                        "symbol": "NASDAQ:AAPL",
+                        "interval": "1",
+                        "timezone": "Etc/UTC",
+                        "theme": "dark",
+                        "style": "1",
+                        "locale": "en",
+                        "allow_symbol_change": true,
+                        "calendar": false,
+                        "studies": ["STD;VWAP"],
+                        "hide_volume": true,
+                        "support_host": "https://www.tradingview.com"
+                    });
+                    
+                    widgetContainer.appendChild(script);
+                    console.log("Main TradingView widget initialized successfully");
+                    return;
+                    
+                } catch (error) {
+                    console.error(`TradingView widget initialization attempt ${i + 1} failed:`, error);
+                    if (i === retries - 1) throw error;
+                    await this.delay(1000);
+                }
+            }
+        },
+
+        async initializeTradingViewMiniChartWidgetsWithRetry(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    // Process widgets sequentially instead of in parallel
+                    for (let index = 0; index < this.widgetSymbols.length; index++) {
+                        const symbol = this.widgetSymbols[index];
+                        const widgetContainer = this.$refs[`tradingViewWidget${index}`]?.[0];
+                        
+                        if (!widgetContainer) {
+                            console.warn(`Widget container ${index} not found, skipping`);
+                            continue;
+                        }
+                        
+                        widgetContainer.innerHTML = "";
+                        await this.$nextTick();
+                        
+                        const script = document.createElement("script");
+                        script.type = "text/javascript";
+                        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+                        script.async = true;
+                        script.text = JSON.stringify({
+                            symbol: symbol,
+                            width: "100%",
+                            height: "100%",
+                            locale: "en",
+                            dateRange: "12M",
+                            colorTheme: "dark",
+                            isTransparent: false,
+                            autosize: true,
+                            largeChartUrl: "",
+                        });
+                        
+                        widgetContainer.appendChild(script);
+                        
+                        // Add delay between each widget to prevent overwhelming
+                        await this.delay(150);
+                    }
+                    
+                    console.log("Mini chart widgets initialized successfully");
+                    return;
+                    
+                } catch (error) {
+                    console.error(`Mini chart widgets initialization attempt ${i + 1} failed:`, error);
+                    if (i === retries - 1) throw error;
+                    await this.delay(1000);
+                }
+            }
+        },
+
+    // Enhanced widget initialization for clones
+    async initializeTradingViewWidgetForClone(clonedElement, symbol, retries = 2) {
+        for (let attempt = 0; attempt < retries; attempt++) {
+            try {
+                const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
+                
+                if (!widgetContainer) {
+                    throw new Error("Widget container not found in cloned element");
+                }
+                
+                // Check if already initialized
+                const existingSymbol = widgetContainer.getAttribute("data-symbol");
+                if (existingSymbol === symbol) return;
+                
+                // Set loading state
+                const widgetId = `widget-${Date.now()}-${Math.random()}`;
+                this.widgetLoadingStates[widgetId] = 'loading';
+                
+                // Clear and prepare container
+                widgetContainer.innerHTML = '<div class="widget-loading">Loading...</div>';
+                widgetContainer.setAttribute("data-symbol", symbol);
+                widgetContainer.setAttribute("data-widget-id", widgetId);
+                
+                // Wait for DOM to be ready
+                await this.$nextTick();
+                await this.delay(100);
+                
+                // Create script with proper error handling
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+                script.async = true;
+                
+                // Add load/error handlers
+                script.onload = () => {
+                    this.widgetLoadingStates[widgetId] = 'loaded';
+                    console.log(`Widget loaded successfully: ${symbol}`);
+                };
+                
+                script.onerror = () => {
+                    this.widgetLoadingStates[widgetId] = 'error';
+                    console.error(`Failed to load widget: ${symbol}`);
+                    widgetContainer.innerHTML = `<div class="widget-error">Failed to load ${symbol}</div>`;
+                };
+                
+                script.text = JSON.stringify({
+                    symbol: symbol,
+                    width: "100%",
+                    height: "100%",
+                    locale: "en",
+                    dateRange: "12M",
+                    colorTheme: "dark",
+                    isTransparent: false,
+                    autosize: true,
+                    largeChartUrl: "",
+                });
+                
+                // Clear loading state and append script
+                widgetContainer.innerHTML = "";
+                widgetContainer.appendChild(script);
+                
+                return; // Success, exit retry loop
+                
+            } catch (error) {
+                console.error(`Widget initialization attempt ${attempt + 1} failed for ${symbol}:`, error);
+                if (attempt === retries - 1) {
+                    // Final attempt failed
+                    const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
+                    if (widgetContainer) {
+                        widgetContainer.innerHTML = `<div class="widget-error">Error loading ${symbol}</div>`;
+                    }
+                    throw error;
+                }
+                await this.delay(500);
+            }
+        }
+    },
         async register() {
             const courseUrl = "https://www.tradelikethepros.com/offers/H9Vzg92f";
             window.location.href = courseUrl;
@@ -278,71 +665,6 @@ export default {
             // Reset scroll position after all clones are loaded
             container.scrollTop = 0;
             console.log("Preload clones completed");
-        },
-        async initializeTradingViewWidgetForClone(clonedElement, symbol) {
-            const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
-
-            if (!widgetContainer) {
-                console.error("Widget container not found");
-                return;
-            }
-
-            // Check if already initialized
-            const existingSymbol = widgetContainer.getAttribute("data-symbol");
-            if (existingSymbol === symbol) return;
-
-            // Set loading state
-            const widgetId = `widget-${Date.now()}-${Math.random()}`;
-            this.widgetLoadingStates[widgetId] = 'loading';
-
-            try {
-                // Clear and prepare container
-                widgetContainer.innerHTML = '<div class="widget-loading">Loading...</div>';
-                widgetContainer.setAttribute("data-symbol", symbol);
-                widgetContainer.setAttribute("data-widget-id", widgetId);
-
-                // Wait a bit to ensure DOM is ready
-                await this.$nextTick();
-
-                // Create script with error handling
-                const script = document.createElement("script");
-                script.type = "text/javascript";
-                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-                script.async = true;
-
-                // Add load/error handlers
-                script.onload = () => {
-                    this.widgetLoadingStates[widgetId] = 'loaded';
-                    console.log(`Widget loaded successfully: ${symbol}`);
-                };
-
-                script.onerror = () => {
-                    this.widgetLoadingStates[widgetId] = 'error';
-                    console.error(`Failed to load widget: ${symbol}`);
-                    widgetContainer.innerHTML = `<div class="widget-error">Failed to load ${symbol}</div>`;
-                };
-
-                script.text = JSON.stringify({
-                    symbol: symbol,
-                    width: "100%",
-                    height: "100%",
-                    locale: "en",
-                    dateRange: "12M",
-                    colorTheme: "dark",
-                    isTransparent: false,
-                    autosize: true,
-                    largeChartUrl: "",
-                });
-
-                // Clear loading state and append script
-                widgetContainer.innerHTML = "";
-                widgetContainer.appendChild(script);
-
-            } catch (error) {
-                console.error(`Error initializing widget for ${symbol}:`, error);
-                this.widgetLoadingStates[widgetId] = 'error';
-                widgetContainer.innerHTML = `<div class="widget-error">Error loading ${symbol}</div>`;
-            }
         },
         startAutoScroll() {
             if (this.scrollPaused) return;
@@ -538,46 +860,65 @@ export default {
 
         await this.$nextTick();
 
+        // ALWAYS initialize widgets on page load - regardless of login status
+        console.log("Page loaded, initializing widgets...");
+        
         try {
+            // Give DOM time to stabilize
+            await this.delay(500);
+            
+            // Initialize RSS and chat components
             this.initializeRssWidget();
             this.updateChatDimensions();
-
+            
             if (this.isMobile()) {
                 this.calculateMobileDimensions();
             }
 
-            console.log("Initializing main TradingView widgets...");
+            // Initialize TradingView widgets
+            console.log("Initializing main TradingView widget...");
             await this.initializeTradingViewWidget();
+            await this.delay(1000);
+            
+            console.log("Initializing events widget...");
             await this.initializeTradingViewEventsWidget();
+            await this.delay(1000);
+            
+            console.log("Initializing mini chart widgets...");
             await this.initializeTradingViewMiniChartWidgets();
+            await this.delay(1000);
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
+            // Initialize scrolling widgets
             if (this.$refs.scrollContainer) {
                 console.log("Starting preload clones...");
                 await this.preloadClones();
-
-                await new Promise(resolve => setTimeout(resolve, 500));
-
+                await this.delay(500);
+                
                 console.log("Starting auto-scroll...");
                 this.startAutoScroll();
-            } else {
-                console.error("Scroll container is not ready yet.");
             }
 
+            this.widgetsInitialized = true;
+            console.log("All widgets initialized successfully!");
+
         } catch (error) {
-            console.error("Error during component initialization:", error);
+            console.error("Error during widget initialization:", error);
         }
 
+        // Handle URL auth parameter
         const urlParams = new URLSearchParams(window.location.search);
         const authParam = urlParams.get('auth');
 
         setTimeout(() => {
             if (!authParam || authParam !== '23901:kwpDFLQWK9102882913') {
-                this.showAuthPrompt = true;
+                if (!this.user) {
+                    this.showAuthPrompt = true;
+                }
             }
         }, 10000);
     },
+
+
     beforeUnmount() {
         this.scrollPaused = true;
         this.stopAutoScroll();
@@ -1009,5 +1350,51 @@ export default {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+.widgets-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.widgets-loading {
+    background: #1e1e1e;
+    color: white;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #333;
+    border-top: 4px solid #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+.retry-button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background-color: #162D5D;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.retry-button:hover {
+    background-color: #315297;
 }
 </style>
