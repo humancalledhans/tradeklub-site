@@ -551,13 +551,16 @@ export default {
         const authParam = urlParams.get('auth');
 
         // MODIFIED: Instead of showing overlay, redirect to login page after 10 seconds
-        setTimeout(() => {
-            if (!authParam || authParam !== '23901:kwpDFLQWK9102882913') {
-                if (!this.user) {
-                    this.redirectToLoginPage();
+        if (this.$route.path === '/live-tv') {
+            setTimeout(() => {
+                if (!authParam || authParam !== '23901:kwpDFLQWK9102882913') {
+                    if (!this.user) {
+                        console.log("10-second preview ended for live-tv, redirecting to login...");
+                        this.redirectToLoginPage();
+                    }
                 }
-            }
-        }, 10000);
+            }, 10000);
+        }
     },
     beforeUnmount() {
         this.scrollPaused = true;
