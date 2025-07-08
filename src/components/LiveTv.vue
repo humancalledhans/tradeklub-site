@@ -66,8 +66,10 @@
             <!-- Third Column -->
             <div class="column third-column">
                 <!-- Grid container for widgets -->
-                <div class="scroll-container" ref="scrollContainer" @mouseenter="stopAutoScroll"
-                    @mouseleave="startAutoScroll">
+                <div class="scroll-container" 
+                    ref="scrollContainer" 
+                    @mouseenter="onMouseEnterScrollContainer"
+                    @mouseleave="onMouseLeaveScrollContainer">
                     <div class="grid-container">
                         <div v-for="(widget, index) in widgetSymbols" :key="index" class="grid-item">
                             <div class="tradingview-widget-container" :ref="'tradingViewWidget' + index"></div>
@@ -273,151 +275,311 @@ export default {
             container.scrollTop = 0;
             console.log("Preload clones completed");
         },
-        async initializeTradingViewWidgetForClone(clonedElement, symbol) {
-            const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
+        startAutoScroll() {
+            console.log('🚀 Starting auto scroll...', { scrollPaused: this.scrollPaused });
+            
+            // ⭐ FIX: Don't check scrollPaused here, let the caller control it
+            // The old logic was: if (this.scrollPaused) return; ❌
+            
+            // Clear any existing animation frame first
+            if (this.scrollInterval) {
+                console.log('⚠️ Clearing existing scroll interval');
+                cancelAnimationFrame(this.scrollInterval);
+                this.scrollInterval = null;
+            }
 
-            if (!widgetContainer) {
-                console.error("Widget container not found");
+            const container = this.$refs.scrollContainer;
+            if (!container) {
+                console.error('❌ Scroll container not found');
                 return;
             }
 
-            // Check if already initialized
-            const existingSymbol = widgetContainer.getAttribute("data-symbol");
-            if (existingSymbol === symbol) return;
-
-            // Set loading state
-            const widgetId = `widget-${Date.now()}-${Math.random()}`;
-            this.widgetLoadingStates[widgetId] = 'loading';
-
-            try {
-                // Clear and prepare container
-                widgetContainer.innerHTML = '<div class="widget-loading">Loading...</div>';
-                widgetContainer.setAttribute("data-symbol", symbol);
-                widgetContainer.setAttribute("data-widget-id", widgetId);
-
-                // Wait a bit to ensure DOM is ready
-                await this.$nextTick();
-
-                // Create script with error handling
-                const script = document.createElement("script");
-                script.type = "text/javascript";
-                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-                script.async = true;
-
-                // Add load/error handlers
-                script.onload = () => {
-                    this.widgetLoadingStates[widgetId] = 'loaded';
-                    console.log(`Widget loaded successfully: ${symbol}`);
-                };
-
-                script.onerror = () => {
-                    this.widgetLoadingStates[widgetId] = 'error';
-                    console.error(`Failed to load widget: ${symbol}`);
-                    widgetContainer.innerHTML = `<div class="widget-error">Failed to load ${symbol}</div>`;
-                };
-
-                script.text = JSON.stringify({
-                    symbol: symbol,
-                    width: "100%",
-                    height: "100%",
-                    locale: "en",
-                    dateRange: "12M",
-                    colorTheme: "dark",
-                    isTransparent: false,
-                    autosize: true,
-                    largeChartUrl: "",
-                });
-
-                // Clear loading state and append script
-                widgetContainer.innerHTML = "";
-                widgetContainer.appendChild(script);
-
-            } catch (error) {
-                console.error(`Error initializing widget for ${symbol}:`, error);
-                this.widgetLoadingStates[widgetId] = 'error';
-                widgetContainer.innerHTML = `<div class="widget-error">Error loading ${symbol}</div>`;
-            }
-        },
-        startAutoScroll() {
-            if (this.scrollPaused) return;
-
-            const container = this.$refs.scrollContainer;
-            if (!container) return;
-
             let scrollSpeed = 0.5;
             let cumulativeScroll = 0;
+            // let frameCount = 0;
 
             const scroll = () => {
+                // frameCount++;
+                
+                // ⭐ FIX: Check scrollPaused inside the animation loop, not at start
                 if (this.scrollPaused || this.isProcessing) {
                     this.scrollInterval = requestAnimationFrame(scroll);
+                    return;
+                }
+
+                // Health check logging
+                // if (frameCount % 300 === 0) {
+                //     console.log(`🔄 Scroll health: frame ${frameCount}, paused: ${this.scrollPaused}, processing: ${this.isProcessing}`);
+                // }
+
+                // Check if container still exists
+                if (!container || !container.parentNode) {
+                    console.error('❌ Container no longer exists, stopping scroll');
                     return;
                 }
 
                 cumulativeScroll += scrollSpeed;
 
                 if (cumulativeScroll >= 1) {
-                    container.scrollTop += Math.floor(cumulativeScroll);
-                    cumulativeScroll -= Math.floor(cumulativeScroll);
+                    const scrollAmount = Math.floor(cumulativeScroll);
+                    container.scrollTop += scrollAmount;
+                    cumulativeScroll -= scrollAmount;
                 }
 
                 // Check if we need to cycle widgets
-                if (container.scrollTop + container.clientHeight >= container.scrollHeight - 10) {
-                    this.cycleWidgets();
+                const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+                
+                if (isAtBottom) {
+                    console.log('📍 Reached bottom, cycling widgets...');
+                    this.cycleWidgets().catch(error => {
+                        console.error('❌ Error in cycleWidgets:', error);
+                        this.isProcessing = false;
+                    });
                 }
 
                 this.scrollInterval = requestAnimationFrame(scroll);
             };
 
+            console.log('✅ Auto scroll animation started');
             scroll();
         },
-        async cycleWidgets() {
-            if (this.isProcessing) return;
-            this.isProcessing = true;
+
+    async cycleWidgets() {
+        console.log('🔄 Starting widget cycle...');
+        
+        if (this.isProcessing) {
+            console.log('⚠️ Already processing, skipping cycle');
+            return;
+        }
+        
+        this.isProcessing = true;
+        // const startTime = Date.now();
+
+        try {
+            const container = this.$refs.scrollContainer;
+            const gridContainer = container?.querySelector(".grid-container");
+            
+            if (!container || !gridContainer) {
+                console.error('❌ Container or grid container not found');
+                return;
+            }
+
+            const firstWidget = gridContainer.firstElementChild;
+            if (!firstWidget) {
+                console.error('❌ No first widget found');
+                return;
+            }
+
+            console.log(`📊 Widgets before cycle: ${gridContainer.children.length}`);
+
+            // Create new widget first
+            const clonedWidget = firstWidget.cloneNode(true);
+            const symbolIndex = (this.currentSymbolIndex++) % this.widgetSymbols.length;
+            const symbol = this.widgetSymbols[symbolIndex];
+
+            console.log(`➕ Adding new widget with symbol: ${symbol} (index: ${symbolIndex})`);
+
+            // Add to DOM
+            gridContainer.appendChild(clonedWidget);
+
+            // ⭐ FIX: Add timeout to widget initialization
+            const initPromise = this.initializeTradingViewWidgetForClone(clonedWidget, symbol);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Widget initialization timeout')), 5000)
+            );
 
             try {
-                const container = this.$refs.scrollContainer;
-                const gridContainer = container.querySelector(".grid-container");
-                const firstWidget = gridContainer.firstElementChild;
-
-                if (!firstWidget) {
-                    this.isProcessing = false;
-                    return;
-                }
-
-                // Create new widget first
-                const clonedWidget = firstWidget.cloneNode(true);
-                const symbolIndex = (this.currentSymbolIndex++) % this.widgetSymbols.length;
-                const symbol = this.widgetSymbols[symbolIndex];
-
-                // Add to DOM
-                gridContainer.appendChild(clonedWidget);
-
-                // Initialize the new widget
-                await this.initializeTradingViewWidgetForClone(clonedWidget, symbol);
-
-                // Wait a bit for the widget to start loading
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                // Adjust scroll position
-                const widgetHeight = firstWidget.offsetHeight + 10;
-                container.scrollTop -= widgetHeight;
-
-                // Remove the old widget
-                if (gridContainer.contains(firstWidget)) {
-                    gridContainer.removeChild(firstWidget);
-                }
-
+                await Promise.race([initPromise, timeoutPromise]);
+                console.log(`✅ Widget initialized: ${symbol}`);
             } catch (error) {
-                console.error("Error cycling widgets:", error);
-            } finally {
-                this.isProcessing = false;
+                console.warn(`⚠️ Widget initialization failed/timeout: ${symbol}`, error);
+                // Continue anyway - don't let one widget break the cycle
             }
-        },
-        stopAutoScroll() {
-            this.scrollPaused = true;
+
+            // ⭐ FIX: Reduced wait time to prevent stalling
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Adjust scroll position
+            const widgetHeight = firstWidget.offsetHeight + 10;
+            const oldScrollTop = container.scrollTop;
+            container.scrollTop = Math.max(0, container.scrollTop - widgetHeight);
+            
+            console.log(`📏 Adjusted scroll: ${oldScrollTop} -> ${container.scrollTop} (height: ${widgetHeight})`);
+
+            // Remove the old widget
+            if (gridContainer.contains(firstWidget)) {
+                gridContainer.removeChild(firstWidget);
+                console.log('➖ Removed old widget');
+            }
+
+            // console.log(`📊 Widgets after cycle: ${gridContainer.children.length}`);
+            // console.log(`⏱️ Cycle completed in ${Date.now() - startTime}ms`);
+
+        } catch (error) {
+            console.error('❌ Error cycling widgets:', error);
+            
+            // ⭐ FIX: Reset scroll position if something goes wrong
+            const container = this.$refs.scrollContainer;
+            if (container) {
+                container.scrollTop = Math.max(0, container.scrollTop - 50);
+            }
+        } finally {
+            this.isProcessing = false;
+            console.log('🏁 Widget cycle processing flag reset');
+        }
+    },
+
+    stopAutoScroll() {
+        console.log('🛑 Stopping auto scroll...');
+        
+        if (this.scrollInterval) {
             cancelAnimationFrame(this.scrollInterval);
-        },
+            this.scrollInterval = null;
+            console.log('✅ Animation frame cancelled');
+        }
+    },
+
+    onMouseEnterScrollContainer() {
+        console.log('🖱️ Mouse entered scroll container - pausing scroll');
+        this.scrollPaused = true;
+    },
+
+    onMouseLeaveScrollContainer() {
+        console.log('🖱️ Mouse left scroll container - resuming scroll');
+        this.scrollPaused = false;
+        
+        // ⭐ FIX: Don't restart the entire animation, just unpause
+        // The animation loop is still running, just unpaused
+        
+        // Only restart if the animation has actually stopped
+        if (!this.scrollInterval) {
+            console.log('🔄 Animation stopped, restarting...');
+            this.startAutoScroll();
+        }
+    },
+
+
+    // ⭐ NEW: Method to restart scrolling if it gets stuck
+    restartScrolling() {
+        console.log('🔄 Restarting scrolling...');
+        this.stopAutoScroll();  // Stop animation
+        this.scrollPaused = false;  // Unpause
+        this.isProcessing = false;  // Reset processing
+        
+        // Small delay to ensure cleanup
+        setTimeout(() => {
+            this.startAutoScroll();
+        }, 100);
+    },
+
+    // ⭐ NEW: Health check method to detect stuck scrolling
+    checkScrollHealth() {
+        const container = this.$refs.scrollContainer;
+        if (!container) return;
+        
+        // Store last scroll position
+        if (!this.lastScrollTop) this.lastScrollTop = 0;
+        if (!this.scrollStuckCount) this.scrollStuckCount = 0;
+        
+        // Check if scroll position hasn't changed
+        if (container.scrollTop === this.lastScrollTop && !this.scrollPaused && !this.isProcessing) {
+            this.scrollStuckCount++;
+            console.log(`⚠️ Scroll might be stuck (count: ${this.scrollStuckCount})`);
+            
+            if (this.scrollStuckCount > 10) { // 10 seconds of no movement
+                console.log('🚨 Scroll appears stuck, restarting...');
+                this.restartScrolling();
+                this.scrollStuckCount = 0;
+            }
+        } else {
+            this.scrollStuckCount = 0;
+        }
+        
+        this.lastScrollTop = container.scrollTop;
+    },
+
+    // ⭐ ENHANCED: Better error handling for widget initialization
+    async initializeTradingViewWidgetForClone(clonedElement, symbol) {
+        const widgetContainer = clonedElement.querySelector(".tradingview-widget-container");
+
+        if (!widgetContainer) {
+            throw new Error("Widget container not found");
+        }
+
+        // Check if already initialized
+        const existingSymbol = widgetContainer.getAttribute("data-symbol");
+        if (existingSymbol === symbol) {
+            console.log(`♻️ Widget already initialized for ${symbol}`);
+            return;
+        }
+
+        // Set loading state
+        const widgetId = `widget-${Date.now()}-${Math.random()}`;
+        this.widgetLoadingStates[widgetId] = 'loading';
+
+        try {
+            // Clear and prepare container
+            widgetContainer.innerHTML = '<div class="widget-loading">Loading...</div>';
+            widgetContainer.setAttribute("data-symbol", symbol);
+            widgetContainer.setAttribute("data-widget-id", widgetId);
+
+            // Wait a bit to ensure DOM is ready
+            await this.$nextTick();
+
+            // ⭐ FIX: Add timeout to script loading
+            const script = document.createElement("script");
+            script.type = "text/javascript";
+            script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+            script.async = true;
+
+            // Create a promise that resolves when script loads or times out
+            const loadPromise = new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error(`Script load timeout for ${symbol}`));
+                }, 3000);
+
+                script.onload = () => {
+                    clearTimeout(timeout);
+                    this.widgetLoadingStates[widgetId] = 'loaded';
+                    console.log(`✅ Widget script loaded: ${symbol}`);
+                    resolve();
+                };
+
+                script.onerror = () => {
+                    clearTimeout(timeout);
+                    this.widgetLoadingStates[widgetId] = 'error';
+                    reject(new Error(`Script load failed for ${symbol}`));
+                };
+            });
+
+            script.text = JSON.stringify({
+                symbol: symbol,
+                width: "100%",
+                height: "100%",
+                locale: "en",
+                dateRange: "12M",
+                colorTheme: "dark",
+                isTransparent: false,
+                autosize: true,
+                largeChartUrl: "",
+            });
+
+            // Clear loading state and append script
+            widgetContainer.innerHTML = "";
+            widgetContainer.appendChild(script);
+
+            // Wait for script to load
+            await loadPromise;
+
+        } catch (error) {
+            console.error(`❌ Widget initialization failed for ${symbol}:`, error);
+            this.widgetLoadingStates[widgetId] = 'error';
+            widgetContainer.innerHTML = `<div class="widget-error">Failed to load ${symbol}</div>`;
+            throw error; // Re-throw to be caught by caller
+        }
+    },
         pauseScrolling() {
+            console.log('⏸️ Pausing scrolling (method call)');
             this.scrollPaused = true;
         },
         resumeScrolling() {

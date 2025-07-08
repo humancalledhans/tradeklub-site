@@ -43,14 +43,14 @@
             <span v-if="hostScreenSharing" class="stream-type">🖥️ Screen Share</span>
             <span v-else class="stream-type">📹 Camera</span>
 
-            <div class="instructor-info">
+            <!-- <div class="instructor-info">
               👨‍🏫 {{ hostName || 'Instructor' }}
-            </div>
+            </div> -->
           </div>
 
           <div class="viewer-controls">
             <button @click="toggleAudio" :class="{ muted: audioMuted }">
-              {{ audioMuted ? '🔇 Unmute' : '🔊 Mute' }}
+              {{ audioMuted ? '🔇 Unmute Host' : '🔊 Mute Host' }}
             </button>
 
             <button @click="toggleFullscreen" class="fullscreen-btn">
@@ -86,6 +86,14 @@ export default {
   computed: {
     isUserLoggedIn() {
       return this.isAuthenticated;
+    },
+    hasStoredName() {
+      const chatName = localStorage.getItem('userName');
+      const savedName = localStorage.getItem('viewer_name');
+      return !!(chatName || savedName) && this.viewerName.trim();
+    },
+    storedUserName() {
+      return localStorage.getItem('userName') || localStorage.getItem('viewer_name') || '';
     }
   },
   data() {
@@ -95,7 +103,7 @@ export default {
 
       // Connection state
       joined: false,
-      viewerName: localStorage.getItem('viewer_name') || '',
+      viewerName: '',
       channelName: 'trading-room', // Fixed to match admin
 
       // Host state
@@ -112,12 +120,39 @@ export default {
       sessionStartTime: null,
       sessionDuration: '00:00:00',
 
+      // ⭐ FIXED: Add missing auto-join properties
+      isAutoJoining: false,
+      autoJoinTimeout: null,
+      nameWatchInterval: null,
+
       // Agora credentials
       appId: process.env.VUE_APP_AGORA_APP_ID,
       token: null,
     };
   },
   watch: {
+    storedUserName: {
+      handler(newName, oldName) {
+        console.log('Stored name changed:', { from: oldName, to: newName });
+        
+        if (newName && newName !== this.viewerName) {
+          console.log('Updating viewerName from storage:', newName);
+          this.viewerName = newName;
+          
+          // Auto-join if authenticated and not already joined
+          if (this.isAuthenticated && !this.joined && !this.isAutoJoining) {
+            console.log('Auto-joining due to name change');
+            this.checkAndAutoJoin();
+          }
+        }
+      },
+      immediate: true // Check on component creation
+    },
+
+    '$root.$data'() {
+      // This will trigger when storage events fire
+      this.checkStorageForNameUpdates();
+    },
     isAuthenticated(newValue, oldValue) {
       console.log('BroadcasterView auth status changed:', { from: oldValue, to: newValue });
       if (newValue && !oldValue) {
@@ -136,26 +171,26 @@ export default {
     }
   },
   async mounted() {
-    // Check authentication status
-    this.checkAuthStatus();
+    console.log('BroadcasterView mounted with auth status:', this.isAuthenticated);
+    
+    // ⭐ NEW: Initialize name checking
+    this.initializeNameWatching();
+    
+    // ⭐ NEW: Auto-populate name from storage
+    this.updateNameFromStorage();
 
-    // Initialize Agora client only if user is logged in
+    // Initialize Agora client if authenticated
     if (this.isUserLoggedIn) {
-      try {
-        this.client = AgoraRTC.createClient({
-          mode: "rtc",
-          codec: "vp8"
-        });
-        this.setupEventListeners();
-      } catch (error) {
-        console.error('Failed to initialize Agora client:', error);
-      }
+      await this.initializeAgoraClient();
     }
+
+    // ⭐ NEW: Check for auto-join conditions
+    this.checkAndAutoJoin();
 
     // Setup fullscreen detection
     document.addEventListener('fullscreenchange', this.handleFullscreenChange);
 
-    // Listen for storage changes to update auth status
+    // ⭐ NEW: Listen for storage changes
     window.addEventListener('storage', this.handleStorageChange);
   },
 
@@ -166,9 +201,80 @@ export default {
     this.stopSessionTimer();
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
     window.removeEventListener('storage', this.handleStorageChange);
+
+    if (this.autoJoinTimeout) {
+      clearTimeout(this.autoJoinTimeout);
+    }
+    if (this.nameWatchInterval) {
+      clearInterval(this.nameWatchInterval);
+    }
   },
 
   methods: {
+    initializeNameWatching() {
+      // Poll for localStorage changes (for same-tab detection)
+      this.nameWatchInterval = setInterval(() => {
+        this.checkStorageForNameUpdates();
+      }, 1000); // Check every second
+    },
+    
+    checkStorageForNameUpdates() {
+      const currentStoredName = localStorage.getItem('userName') || localStorage.getItem('viewer_name') || '';
+      
+      if (currentStoredName && currentStoredName !== this.viewerName) {
+        console.log('Name detected in storage:', currentStoredName);
+        this.viewerName = currentStoredName;
+        
+        // Auto-join if conditions are met
+        this.checkAndAutoJoin();
+      }
+    },
+
+    updateNameFromStorage() {
+      const chatName = localStorage.getItem('userName');
+      const savedName = localStorage.getItem('viewer_name');
+      
+      if (chatName) {
+        this.viewerName = chatName;
+        console.log('Initial name from chat:', chatName);
+      } else if (savedName) {
+        this.viewerName = savedName;
+        console.log('Initial name from saved:', savedName);
+      }
+    },
+
+    handleStorageChange(event) {
+      if (event.key === 'userName' || event.key === 'viewer_name') {
+        console.log('Storage event detected:', event.key, event.newValue);
+        if (event.newValue && event.newValue !== this.viewerName) {
+          this.viewerName = event.newValue;
+          this.checkAndAutoJoin();
+        }
+      }
+    },
+
+    checkAndAutoJoin() {
+      // Prevent multiple auto-join attempts
+      if (this.isAutoJoining || this.joined) {
+        return;
+      }
+
+      if (this.isAuthenticated && this.viewerName.trim()) {
+        console.log('Conditions met for auto-join:', {
+          authenticated: this.isAuthenticated,
+          hasName: !!this.viewerName.trim(),
+          joined: this.joined
+        });
+        
+        this.isAutoJoining = true;
+        
+        // Small delay to show the "joining" state
+        this.autoJoinTimeout = setTimeout(() => {
+          this.joinAsViewer();
+        }, 1500);
+      }
+    },
+    
     checkAuthStatus() {
       const user = sessionStorage.getItem('user');
       this.isUserLoggedIn = !!user;
@@ -177,6 +283,22 @@ export default {
       if (this.isUserLoggedIn && !this.client) {
         this.initializeAgoraClient();
       }
+    },
+
+    cancelAutoJoin() {
+      // Clear timeouts
+      if (this.autoJoinTimeout) {
+        clearTimeout(this.autoJoinTimeout);
+        this.autoJoinTimeout = null;
+      }
+      
+      this.isAutoJoining = false;
+      
+      // Clear stored names so user can enter new one
+      localStorage.removeItem('userName');
+      localStorage.removeItem('viewer_name');
+      this.viewerName = '';
+      console.log('Auto-join cancelled, user can enter new name');
     },
 
     async initializeAgoraClient() {
@@ -189,11 +311,6 @@ export default {
       } catch (error) {
         console.error('Failed to initialize Agora client:', error);
       }
-    },
-
-    handleStorageChange() {
-      // React to sessionStorage changes (e.g., when user logs in/out)
-      this.checkAuthStatus();
     },
 
     triggerParentLogin() {
@@ -297,17 +414,19 @@ export default {
         return;
       }
       
-      if (!this.isUserLoggedIn) {
-        alert('Please log in first');
-        return;
-      }
-
       if (!this.viewerName.trim()) {
         alert('Please enter your name');
         return;
       }
 
       try {
+        // Clear auto-join state
+        this.isAutoJoining = false;
+        if (this.autoJoinTimeout) {
+          clearTimeout(this.autoJoinTimeout);
+          this.autoJoinTimeout = null;
+        }
+
         console.log('Getting viewer token...');
 
         // Get token from backend
@@ -343,18 +462,19 @@ export default {
         );
 
         console.log(`Successfully joined as viewer with UID: ${uidToUse}`);
-        console.log('Remote users currently in channel:', this.client.remoteUsers.map(u => u.uid));
 
-        this.joined = true;
+        this.joined = true; // ⭐ FIXED: Only set once
 
-        // Store viewer name
+        // ⭐ FIXED: Sync names across both storage keys
         localStorage.setItem('viewer_name', this.viewerName);
+        localStorage.setItem('userName', this.viewerName);
+        
+        console.log('Successfully joined video session as:', this.viewerName);
 
-        // ⭐ ADD: Check if host is already streaming
+        // ⭐ Check if host is already streaming
         setTimeout(() => {
           console.log('Checking for existing remote users after join...');
-          console.log('Remote users:', this.client.remoteUsers);
-
+          
           // Try to subscribe to any existing streams
           this.client.remoteUsers.forEach(async (user) => {
             console.log(`Found existing user: ${user.uid}`);
@@ -382,11 +502,12 @@ export default {
               }
             }
           });
-        }, 1000); // Give a second for the channel state to settle
+        }, 1000);
 
       } catch (error) {
         console.error('Failed to join session:', error);
         alert('Failed to join session: ' + error.message);
+        this.isAutoJoining = false; // ⭐ Reset on error
       }
     },
 
