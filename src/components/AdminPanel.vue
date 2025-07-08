@@ -75,17 +75,25 @@
             <p><strong>Channel:</strong> {{ channelName }}</p>
             <p><strong>Status:</strong> {{ streamStatus }}</p>
             <p><strong>Duration:</strong> {{ streamDuration }}</p>
+            <p><strong>Viewers:</strong> {{ remoteViewers.length }}</p>
           </div>
           
-          <!-- <div class="info-card">
-            <h4>Connected Viewers</h4>
-            <div v-if="remoteViewers.length === 0" class="no-viewers">
-              No viewers connected yet
+          <!-- ⭐ NEW: Live Chat Display -->
+          <div class="info-card chat-card">
+            <h4>Live Chat</h4>
+            <div class="chat-messages-admin" ref="adminChatMessages">
+              <div v-if="chatMessages.length === 0" class="no-messages">
+                No chat messages yet...
+              </div>
+              <div v-for="(message, index) in chatMessages" :key="index" class="chat-message-admin">
+                <div class="message-header">
+                  <span class="message-sender">{{ message.senderName }}</span>
+                  <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                </div>
+                <div class="message-text">{{ message.text }}</div>
+              </div>
             </div>
-            <div v-for="viewer in remoteViewers" :key="viewer.uid" class="viewer-item">
-              👤 {{ viewer.name }}
-            </div>
-          </div> -->
+          </div>
         </div>
       </div>
     </div>
@@ -125,6 +133,9 @@ export default {
       // Remote viewers
       remoteViewers: [],
       
+      // ⭐ NEW: Chat messages for admin
+      chatMessages: [],
+      
       // Stream info
       streamStartTime: null,
       streamDuration: '00:00:00',
@@ -151,6 +162,9 @@ export default {
       this.isAdmin = true;
     }
     
+    // ⭐ NEW: Load chat messages from sessionStorage
+    this.loadChatFromSession();
+    
     // Initialize Agora client
     try {
       this.client = AgoraRTC.createClient({ 
@@ -173,6 +187,36 @@ export default {
   },
   
   methods: {
+    saveChatToSession() {
+      try {
+        sessionStorage.setItem('admin_chat_messages', JSON.stringify(this.chatMessages));
+      } catch (error) {
+        console.error('Failed to save chat to session:', error);
+      }
+    },
+
+    // ⭐ NEW: Load chat messages from sessionStorage
+    loadChatFromSession() {
+      try {
+        const savedMessages = sessionStorage.getItem('admin_chat_messages');
+        if (savedMessages) {
+          this.chatMessages = JSON.parse(savedMessages);
+          console.log('Loaded chat messages from session:', this.chatMessages.length);
+          // Scroll to bottom after loading
+          this.$nextTick(() => {
+            this.scrollChatToBottom();
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load chat from session:', error);
+        this.chatMessages = [];
+      }
+    },
+
+    // ⭐ NEW: Clear chat from sessionStorage
+    clearChatSession() {
+      sessionStorage.removeItem('admin_chat_messages');
+    },
     login() {
       if (
         this.username === process.env.VUE_APP_ADMIN_USERNAME &&
@@ -201,6 +245,35 @@ export default {
       // When viewer publishes (they shouldn't, but just in case)
       this.client.on("user-published", async (user, mediaType) => {
         console.log("Viewer published (unexpected):", user.uid, mediaType);
+      });
+
+      // ⭐ NEW: Listen for stream messages (chat messages)
+      this.client.on("stream-message", (uid, stream) => {
+        try {
+          // Convert stream data back to string
+          const messageText = new TextDecoder().decode(stream);
+          const messageData = JSON.parse(messageText);
+          
+          console.log('Admin received stream message:', messageData);
+          
+          if (messageData.type === 'chat_message') {
+            const newMessage = {
+              id: messageData.id || `${uid}-${Date.now()}`,
+              senderName: messageData.userName || uid,
+              text: messageData.message,
+              timestamp: messageData.timestamp || Date.now()
+            };
+            
+            // Avoid duplicate messages
+            if (!this.chatMessages.some(m => m.id === newMessage.id)) {
+              this.chatMessages.push(newMessage);
+              this.saveChatToSession();
+              this.scrollChatToBottom();
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing stream message in admin:', error);
+        }
       });
     },
     
@@ -286,6 +359,8 @@ export default {
         this.micOn = false;
         this.isScreenSharing = false;
         this.remoteViewers = [];
+        this.chatMessages = []; // Clear chat messages from component
+        this.clearChatSession(); // ⭐ NEW: Clear chat from sessionStorage
         this.stopStreamTimer();
         
         console.log('Live stream ended');
@@ -400,6 +475,26 @@ export default {
     
     removeViewer(uid) {
       this.remoteViewers = this.remoteViewers.filter(viewer => viewer.uid !== uid);
+    },
+
+    // ⭐ NEW: Format timestamp for display
+    formatTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    },
+
+    // ⭐ NEW: Scroll chat to bottom
+    scrollChatToBottom() {
+      this.$nextTick(() => {
+        const chatContainer = this.$refs.adminChatMessages;
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      });
     },
     
     startStreamTimer() {
@@ -642,6 +737,110 @@ export default {
   color: #d1d9e6;
 }
 
+/* ⭐ NEW: Chat card specific styling */
+.chat-card {
+  display: flex;
+  flex-direction: column;
+  height: 300px; /* Fixed height for chat */
+}
+
+.chat-card h4 {
+  margin: 0 0 15px 0;
+  color: #ffffff;
+  border-bottom: 1px solid #3b4a6b;
+  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+
+/* Chat messages container */
+.chat-messages-admin {
+  flex: 1;
+  overflow-y: auto;
+  background: #1e2a44;
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0; /* Allow flexbox to shrink */
+}
+
+/* Individual chat message */
+.chat-message-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  border-left: 3px solid #4a6fa5;
+  transition: background-color 0.2s ease;
+}
+
+.chat-message-admin:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Message header with name and time */
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.message-sender {
+  font-size: 13px;
+  color: #4a6fa5;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0; /* Allows text truncation if needed */
+}
+
+.message-time {
+  font-size: 11px;
+  color: #8a9ba8;
+  font-weight: normal;
+  flex-shrink: 0; /* Prevent time from being compressed */
+  margin-left: 8px;
+}
+
+/* Message text */
+.message-text {
+  font-size: 14px;
+  color: #d1d9e6;
+  line-height: 1.4;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+.no-messages {
+  color: #8a9ba8;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
+}
+
+/* Custom scrollbar for chat */
+.chat-messages-admin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages-admin::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.chat-messages-admin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.chat-messages-admin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
 .no-viewers {
   color: #8a9ba8;
   font-style: italic;
@@ -657,6 +856,7 @@ export default {
   color: #d1d9e6;
 }
 
+/* Mobile responsiveness for chat */
 @media (max-width: 768px) {
   .stream-info {
     grid-template-columns: 1fr;
@@ -668,6 +868,26 @@ export default {
   
   .admin-controls button {
     width: 100%;
+  }
+
+  .chat-card {
+    height: 250px; /* Smaller height on mobile */
+  }
+  
+  .chat-message-admin {
+    padding: 6px 8px;
+  }
+  
+  .message-text {
+    font-size: 13px;
+  }
+
+  .message-sender {
+    font-size: 12px;
+  }
+
+  .message-time {
+    font-size: 10px;
   }
 }
 </style>

@@ -72,6 +72,22 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 
 export default {
   name: 'AgoraViewerView',
+  props: {
+    role: {
+      type: String,
+      default: 'viewer'
+    },
+    // ⭐ NEW: Authentication prop from parent
+    isAuthenticated: {
+      type: Boolean,
+      default: false
+    }
+  },
+  computed: {
+    isUserLoggedIn() {
+      return this.isAuthenticated;
+    }
+  },
   data() {
     return {
       // Agora client
@@ -99,12 +115,26 @@ export default {
       // Agora credentials
       appId: process.env.VUE_APP_AGORA_APP_ID,
       token: null,
-
-      // Authentication state
-      isUserLoggedIn: false
     };
   },
-
+  watch: {
+    isAuthenticated(newValue, oldValue) {
+      console.log('BroadcasterView auth status changed:', { from: oldValue, to: newValue });
+      if (newValue && !oldValue) {
+        console.log('User just logged in to BroadcasterView');
+        // Initialize Agora client if not already done
+        if (!this.client) {
+          this.initializeAgoraClient();
+        }
+      } else if (!newValue && oldValue) {
+        console.log('User logged out from BroadcasterView');
+        // Clean up if user logs out
+        if (this.joined) {
+          this.leaveSession();
+        }
+      }
+    }
+  },
   async mounted() {
     // Check authentication status
     this.checkAuthStatus();
@@ -261,6 +291,12 @@ export default {
     },
 
     async joinAsViewer() {
+      if (!this.isAuthenticated) {
+        console.log('User not authenticated, requesting login');
+        this.triggerParentLogin();
+        return;
+      }
+      
       if (!this.isUserLoggedIn) {
         alert('Please log in first');
         return;

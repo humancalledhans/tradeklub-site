@@ -10,6 +10,7 @@
   "dependencies": {
     "@100mslive/hms-video-store": "^0.12.33",
     "agora-rtc-sdk-ng": "^4.23.3",
+    "agora-rtm-sdk": "^2.2.2",
     "core-js": "^3.8.3",
     "firebase": "^11.0.2",
     "vue": "^3.2.13",

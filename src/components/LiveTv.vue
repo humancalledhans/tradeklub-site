@@ -10,8 +10,13 @@
                         Tradeklub Television
                     </div>
                     <div class="tv-box-wrapper large" style="position:relative;">
-                        <BroadcasterView role="viewer" ref="liveStreamViewer" class="full-size"
-                            @request-login="redirectToLoginPage" />
+                        <BroadcasterView 
+                            role="viewer" 
+                            ref="liveStreamViewer" 
+                            class="full-size"
+                            :is-authenticated="isUserAuthenticated"
+                            @request-login="redirectToLoginPage" 
+                        />
                     </div>
                 </div>
                 <!-- Bottom Small Box (1/3 Height of First Column) -->
@@ -31,8 +36,14 @@
                                 </iframe>
                             </div>
                             <div class="right-half" ref="chatContainer">
-                                <LiveStreamViewer :width="parentWidth" :height="parentHeight" role="viewer"
-                                    @request-login="redirectToLoginPage" ref="liveStreamViewer" />
+                                <LiveStreamViewer 
+                                    :width="parentWidth" 
+                                    :height="parentHeight" 
+                                    role="viewer"
+                                    :is-authenticated="isUserAuthenticated"
+                                    @request-login="redirectToLoginPage" 
+                                    ref="liveStreamViewer" 
+                                />
                             </div>
                         </div>
                     </div>
@@ -111,6 +122,11 @@ export default {
         };
     },
     computed: {
+        isUserAuthenticated() {
+            // Check both component's user state and sessionStorage
+            const sessionUser = sessionStorage.getItem('user');
+            return !!(this.user || sessionUser);
+        },
         liveStreamUrl() {
             return `https://www.youtube.com/embed/99xP-Cpe1z4?autoplay=1&controls=0&showinfo=0`;
         },
@@ -168,8 +184,8 @@ export default {
             this.resetPasswordMode = false;
         },
         
-        // NEW METHOD: Redirect to login page instead of showing overlay
         redirectToLoginPage() {
+            console.log('Login requested from child component');
             // Store current path for redirect after login
             sessionStorage.setItem('redirectAfterLogin', this.$route.fullPath);
             // Redirect to login page
@@ -511,7 +527,13 @@ export default {
 
         const storedUser = sessionStorage.getItem('user');
         if (storedUser) {
-            this.user = JSON.parse(storedUser);
+            try {
+                this.user = JSON.parse(storedUser);
+                console.log('Restored user from session:', this.isUserAuthenticated);
+            } catch (error) {
+                console.error('Error parsing stored user:', error);
+                sessionStorage.removeItem('user'); // Clean up invalid data
+            }
         }
 
         await this.$nextTick();

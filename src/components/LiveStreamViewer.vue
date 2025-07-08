@@ -5,16 +5,16 @@
       <div class="auth-content">
         <h3>Authentication Required</h3>
         <p>Please log in to access the live streaming session</p>
-        <!-- <button @click="triggerParentLogin" class="login-button">
+        <button @click="triggerParentLogin" class="login-button">
           Login
-        </button> -->
+        </button>
       </div>
     </div>
 
     <!-- Name input UI before joining -->
     <div v-else-if="!hasJoined" class="join-section" :style="{ height: `${parentHeight}px` }">
       <input v-model="userName" placeholder="Enter your name..." @keyup.enter="joinRoom" class="name-input" />
-      <button @click="joinRoom" :disabled="!userName.trim()">Join Room</button>
+      <button @click="joinRoom" :disabled="!userName.trim()">Join Chat</button>
     </div>
 
     <!-- Chat UI after joining -->
@@ -32,24 +32,19 @@
           <button class="menu-button" @click="toggleParticipantsMenu">•••</button>
           <div v-if="showParticipantsMenu" class="participants-menu">
             <div class="tabs">
-              <button :class="{ active: activeTab === 'broadcasters' }" @click="activeTab = 'broadcasters'">
-                Broadcasters ({{ broadcasters.length }})
-              </button>
-              <button :class="{ active: activeTab === 'members' }" @click="activeTab = 'members'">
-                Members ({{ members.length }})
+              <button :class="{ active: activeTab === 'viewers' }" @click="activeTab = 'viewers'">
+                Viewers ({{ viewerCount }})
               </button>
             </div>
             <div class="tab-content">
-              <ul v-if="activeTab === 'broadcasters'">
-                <li v-for="(peer, index) in broadcasters" :key="index">
-                  {{ peer.name }}
+              <ul v-if="activeTab === 'viewers'">
+                <li v-for="(viewer, index) in connectedViewers" :key="index">
+                  👤 {{ viewer.name || viewer.uid }}
                 </li>
               </ul>
-              <ul v-if="activeTab === 'members'">
-                <li v-for="(peer, index) in members" :key="index">
-                  {{ peer.name }}
-                </li>
-              </ul>
+              <div v-if="connectedViewers.length === 0" class="no-viewers">
+                No other viewers connected
+              </div>
             </div>
           </div>
         </div>
@@ -59,7 +54,8 @@
 </template>
 
 <script>
-import { hmsActions, hmsStore, hmsNotifications } from '../hms.js';
+// ⭐ SIMPLIFIED: Use Agora RTC for both video AND messaging
+import AgoraRTC from "agora-rtc-sdk-ng";
 
 export default {
   name: "LiveStreamViewer",
@@ -72,28 +68,85 @@ export default {
       type: Number,
       required: true,
     },
+    isAuthenticated: {
+      type: Boolean,
+      default: false
+    }
   },
   data() {
     return {
+      // ⭐ SIMPLIFIED: Use RTC client for both video and messaging
+      client: null,
+      
+      // Chat data
       messages: [],
       newMessage: "",
-      participants: [],
-      broadcasters: [],
-      members: [],
+      
+      // User data
       userId: null,
       userName: localStorage.getItem('userName') || '',
       hasJoined: false,
+      
+      // UI state
       showParticipantsMenu: false,
-      activeTab: 'broadcasters',
-      // Authentication state
-      isUserLoggedIn: false
+      activeTab: 'viewers',
+      
+      // Channel info
+      channelName: 'trading-room', // Match your video streaming setup
+      connectedViewers: [],
+      
+      // Agora credentials
+      appId: process.env.VUE_APP_AGORA_APP_ID,
     };
   },
+  computed: {
+    isUserLoggedIn() {
+      if (this.isAuthenticated) {
+        return true;
+      }
+      
+      const sessionUser = sessionStorage.getItem('user');
+      if (sessionUser) {
+        try {
+          const userData = JSON.parse(sessionUser);
+          return !!(userData && (userData.uid || userData.email || userData.authenticated));
+        } catch (error) {
+          console.error('Error parsing session user:', error);
+          return false;
+        }
+      }
+      
+      return false;
+    },
+    viewerCount() {
+      return this.connectedViewers.length;
+    }
+  },
+  watch: {
+    isAuthenticated(newValue, oldValue) {
+      console.log('LiveStreamViewer auth status changed:', { from: oldValue, to: newValue });
+      if (newValue && !oldValue) {
+        console.log('User just logged in to LiveStreamViewer');
+        if (this.userName.trim() && !this.hasJoined) {
+          this.joinRoom();
+        }
+      } else if (!newValue && oldValue) {
+        console.log('User logged out from LiveStreamViewer');
+        if (this.hasJoined) {
+          this.leaveRoom();
+        }
+      }
+    },
+    
+    isUserLoggedIn(newValue, oldValue) {
+      console.log('isUserLoggedIn computed changed:', { from: oldValue, to: newValue });
+    }
+  },
   async mounted() {
+    console.log('LiveStreamViewer mounted with auth status:', this.isAuthenticated);
+    console.log('Computed isUserLoggedIn:', this.isUserLoggedIn);
 
-    // Check authentication status first
-    this.checkAuthStatus();
-
+    // Generate or get user ID
     this.userId = localStorage.getItem('user_id');
     if (!this.userId) {
       if (window.crypto && window.crypto.randomUUID) {
@@ -104,178 +157,264 @@ export default {
       localStorage.setItem('user_id', this.userId);
     }
 
-    if (this.userName.trim()) {
+    // Auto-join if authenticated and has saved name
+    if (this.isUserLoggedIn && this.userName.trim()) {
       await this.joinRoom();
     }
 
     document.addEventListener('click', this.closeParticipantsMenu);
+    window.addEventListener('storage', this.handleStorageChange);
+    window.addEventListener('session-storage-change', this.handleStorageChange);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.closeParticipantsMenu);
+    window.removeEventListener('storage', this.handleStorageChange);
+    window.removeEventListener('session-storage-change', this.handleStorageChange);
     if (this.hasJoined) {
-      hmsActions.leave();
+      this.leaveRoom();
     }
   },
   methods: {
-    checkAuthStatus() {
-      // Check for user in sessionStorage (you can modify this based on your auth implementation)
-      const user = sessionStorage.getItem('user');
-      this.isUserLoggedIn = !!user;
-
-      // Alternative approaches:
-      // const token = localStorage.getItem('authToken');
-      // this.isUserLoggedIn = !!token;
-
-      // Or check for a specific user property:
-      // const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
-      // this.isUserLoggedIn = userData.authenticated === true;
-
-      console.log('Auth status:', this.isUserLoggedIn);
+    handleStorageChange() {
+      console.log('Storage changed, rechecking auth status');
+      this.$forceUpdate();
     },
 
     triggerParentLogin() {
-      // Emit an event to the parent component to trigger login
+      console.log('Requesting login from LiveStreamViewer');
       this.$emit('request-login');
     },
 
-
-    async fetchAuthToken(userId) {
+    // ⭐ SIMPLIFIED: Get regular RTC token (reuse existing endpoint)
+    async fetchToken(userId) {
       try {
         const BACKEND_URL = process.env.VUE_APP_BACKEND_URL || "http://localhost:8000";
-        const response = await fetch(BACKEND_URL + '/generate-100ms-token', {
+        const response = await fetch(`${BACKEND_URL}/generate-agora-token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ user_id: userId })
+          body: JSON.stringify({ 
+            channel_name: this.channelName,
+            uid: userId,
+            role: 'audience'  // Join as audience for chat
+          })
         });
+        
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
-        return { token: data.token, roomId: data.room_id };
+        return data;
       } catch (error) {
-        console.error('Error fetching auth token:', error);
+        console.error('Error fetching token:', error);
         return null;
       }
     },
+
+    // ⭐ SIMPLIFIED: Use RTC client for messaging
     async joinRoom() {
+      if (!this.isUserLoggedIn) {
+        console.log('User not authenticated');
+        return;
+      }
+
       if (!this.userName.trim()) {
         console.error("User name is required to join the room");
         return;
       }
 
-      const authData = await this.fetchAuthToken(this.userId);
-      if (!authData) {
-        console.error("Failed to fetch auth token, cannot join room");
-        return;
-      }
-
-      const config = {
-        userName: this.userName,
-        authToken: authData.token,
-        settings: {
-          isAudioMuted: true,
-          isVideoMuted: true,
-        },
-        role: "viewer-realtime",
-      };
-
       try {
-        await hmsActions.join(config);
-        console.log("Joined room successfully");
+        console.log('Initializing Agora RTC for chat...');
+        
+        // Create RTC client (same as your video streaming)
+        this.client = AgoraRTC.createClient({ 
+          mode: "rtc", 
+          codec: "vp8" 
+        });
+        
+        // Get token using existing endpoint
+        const tokenData = await this.fetchToken(this.userId);
+        if (!tokenData) {
+          throw new Error('Failed to get authentication token');
+        }
+        
+        console.log('Token received for chat');
+        
+        // Join channel as audience (no video/audio publishing)
+        await this.client.join(
+          tokenData.app_id, 
+          this.channelName, 
+          tokenData.token,
+          parseInt(tokenData.uid)
+        );
+        
+        console.log('Joined RTC channel for chat');
+        
+        // Set up event listeners for messaging
+        this.setupEventListeners();
+        
+        // Send join notification using stream message
+        await this.sendStreamMessage({
+          type: 'user_joined',
+          userName: this.userName,
+          userId: this.userId,
+          timestamp: Date.now()
+        });
+        
         this.hasJoined = true;
         localStorage.setItem('userName', this.userName);
+        
+        console.log('Successfully joined chat room');
+        
+      } catch (error) {
+        console.error("Error joining room:", error);
+        alert('Failed to join chat: ' + error.message);
+      }
+    },
 
-        hmsNotifications.onNotification((notification) => {
-          console.log('Notification received 3535:', notification);
-          if (notification.data && notification.data.message) {
+    // ⭐ NEW: Set up RTC event listeners for messaging
+    setupEventListeners() {
+      // Listen for users joining/leaving
+      this.client.on("user-joined", (user) => {
+        console.log("User joined:", user.uid);
+        this.addViewer(user);
+      });
+
+      this.client.on("user-left", (user) => {
+        console.log("User left:", user.uid);
+        this.removeViewer(user.uid);
+      });
+
+      // ⭐ KEY: Listen for stream messages (chat messages)
+      this.client.on("stream-message", (uid, stream) => {
+        try {
+          // Convert stream data back to string
+          const messageText = new TextDecoder().decode(stream);
+          const messageData = JSON.parse(messageText);
+          
+          console.log('Received stream message:', messageData);
+          
+          if (messageData.type === 'chat_message') {
             const newMessage = {
-              id: notification.data.id || `${notification.data.senderUserId}-${notification.data.message}`,
-              senderName: notification.data.senderName || 'Unknown',
-              text: notification.data.message || 'No message text'
+              id: messageData.id || `${uid}-${Date.now()}`,
+              senderName: messageData.userName || uid,
+              text: messageData.message,
+              timestamp: messageData.timestamp || Date.now()
             };
+            
+            // Avoid duplicate messages
             if (!this.messages.some(m => m.id === newMessage.id)) {
               this.messages.push(newMessage);
               this.scrollToBottom();
             }
-          } else if (notification.type === 'PEER_JOINED' || notification.type === 'PEER_LEFT') {
-            console.log('Peer event:', notification);
-            this.updateParticipants(hmsStore.getState().peers);
+          } else if (messageData.type === 'user_joined') {
+            // Add user to connected viewers list
+            const existingViewer = this.connectedViewers.find(v => v.uid === uid);
+            if (!existingViewer) {
+              this.connectedViewers.push({
+                uid: uid,
+                name: messageData.userName,
+                joinTime: messageData.timestamp
+              });
+            }
           }
-        });
+        } catch (error) {
+          console.error('Error parsing stream message:', error);
+        }
+      });
+    },
 
-        hmsStore.subscribe(
-          (state) => this.updateMessages(state.messages ? state.messages.byID : undefined),
-          (state) => (state.messages ? state.messages.byID : undefined)
-        );
-
-        hmsStore.subscribe(
-          (state) => this.updateParticipants(state.peers),
-          (state) => state.peers
-        );
-
-        const initialState = hmsStore.getState();
-        console.log('Initial peers:', initialState.peers);
-        this.updateMessages(initialState.messages ? initialState.messages.byID : undefined);
-        this.updateParticipants(initialState.peers);
-
-        console.log('Initial store state:', initialState);
-
-        setInterval(() => {
-          const state = hmsStore.getState();
-          console.log('Periodic peers check:', state.peers);
-        }, 5000);
+    // ⭐ NEW: Send stream message helper
+    async sendStreamMessage(data) {
+      try {
+        const messageString = JSON.stringify(data);
+        const messageBuffer = new TextEncoder().encode(messageString);
+        await this.client.sendStreamMessage(messageBuffer);
       } catch (error) {
-        console.error("Error joining room:", error);
+        console.error('Error sending stream message:', error);
+        throw error;
       }
     },
-    sendMessage() {
-      if (this.newMessage.trim()) {
-        console.log('Sending message:', this.newMessage);
-        hmsActions.sendBroadcastMessage(this.newMessage);
-        const selfMessage = {
+
+    // ⭐ SIMPLIFIED: Send message via RTC stream message
+    async sendMessage() {
+      if (!this.newMessage.trim() || !this.hasJoined) return;
+
+      try {
+        const messageData = {
+          type: 'chat_message',
           id: `${this.userId}-${Date.now()}`,
-          senderName: this.userName,
-          text: this.newMessage
+          userName: this.userName,
+          message: this.newMessage.trim(),
+          timestamp: Date.now()
         };
+
+        // Send via RTC stream message
+        await this.sendStreamMessage(messageData);
+
+        // Add to local messages immediately
+        const selfMessage = {
+          id: messageData.id,
+          senderName: this.userName,
+          text: messageData.message,
+          timestamp: messageData.timestamp
+        };
+
         if (!this.messages.some(m => m.id === selfMessage.id)) {
           this.messages.push(selfMessage);
           this.scrollToBottom();
         }
+
         this.newMessage = "";
-        console.log('Full store state after send:', hmsStore.getState());
+        console.log('Message sent successfully');
+
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        alert('Failed to send message: ' + error.message);
       }
     },
-    updateParticipants(peers) {
-      console.log('Updating participants with peers:', peers);
-      if (peers && typeof peers === 'object' && Object.keys(peers).length > 0) {
-        const peerList = Object.values(peers);
-        console.log('Converted peer list:', peerList);
-        this.participants = peerList;
-        this.broadcasters = peerList.filter(peer => peer.roleName === 'broadcaster');
-        this.members = peerList.filter(peer => peer.roleName === 'viewer-realtime');
-        console.log('Broadcasters:', this.broadcasters);
-        console.log('Members:', this.members);
-      } else {
-        console.log('Peers is invalid or empty, keeping last state:', peers);
+
+    // ⭐ SIMPLIFIED: Leave RTC channel
+    async leaveRoom() {
+      try {
+        if (this.client) {
+          // Send leave notification
+          await this.sendStreamMessage({
+            type: 'user_left',
+            userName: this.userName,
+            userId: this.userId,
+            timestamp: Date.now()
+          });
+
+          await this.client.leave();
+          this.client = null;
+        }
+
+        this.hasJoined = false;
+        this.connectedViewers = [];
+        this.messages = [];
+        
+        console.log('Left chat room successfully');
+        
+      } catch (error) {
+        console.error('Error leaving room:', error);
       }
     },
-    updateMessages(messagesByID) {
-      if (messagesByID && Array.isArray(messagesByID)) {
-        console.log('Chat messages from store.byID:', messagesByID);
-        const storeMessages = messagesByID.map(msg => ({
-          id: msg.id || `${msg.senderUserId}-${msg.message}`,
-          senderName: msg.senderName || 'Unknown',
-          text: msg.message || 'No message text'
-        }));
-        this.messages = [
-          ...this.messages.filter(m => !storeMessages.some(sm => sm.id === m.id)),
-          ...storeMessages
-        ];
-        this.scrollToBottom();
-      } else {
-        console.log('No messages in store.byID or invalid format:', messagesByID);
+
+    addViewer(user) {
+      const existingViewer = this.connectedViewers.find(v => v.uid === user.uid);
+      if (!existingViewer) {
+        this.connectedViewers.push({
+          uid: user.uid,
+          name: user.uid, // Will be updated when they send join message
+          joinTime: Date.now()
+        });
       }
     },
+
+    removeViewer(uid) {
+      this.connectedViewers = this.connectedViewers.filter(viewer => viewer.uid !== uid);
+    },
+
     scrollToBottom() {
       this.$nextTick(() => {
         const chatMessages = this.$refs.chatMessages;
@@ -284,17 +423,16 @@ export default {
         }
       });
     },
+
     toggleParticipantsMenu(event) {
-      console.log('Toggling participants menu. Current state:', this.showParticipantsMenu);
       this.showParticipantsMenu = !this.showParticipantsMenu;
-      console.log('New state:', this.showParticipantsMenu);
       event.stopPropagation();
     },
+
     closeParticipantsMenu(event) {
       if (this.showParticipantsMenu && !this.$el.querySelector('.participants-menu')?.contains(event.target) &&
         !this.$el.querySelector('.menu-button')?.contains(event.target)) {
         this.showParticipantsMenu = false;
-        console.log('Menu closed via click outside');
       }
     },
   },
@@ -302,6 +440,7 @@ export default {
 </script>
 
 <style scoped>
+/* Your existing styles remain the same */
 .join-section {
   display: flex;
   flex-direction: column;
@@ -390,7 +529,6 @@ export default {
   padding-top: 15px;
   border-top: 1px solid #3b4a6b;
   position: relative;
-  /* Anchor for menu positioning */
 }
 
 .chat-input input {
@@ -427,11 +565,8 @@ export default {
 .participants-menu {
   position: absolute;
   bottom: 100%;
-  /* Position above the input */
   right: 0;
-  /* Align with the right edge of the menu button */
   transform: translateY(-10px);
-  /* Slight offset from the button */
   background: #2c3e5a;
   border: 1px solid #3b4a6b;
   border-radius: 4px;
@@ -479,6 +614,14 @@ export default {
 
 .tab-content li {
   margin: 5px 0;
+}
+
+.no-viewers {
+  color: #8a9ba8;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
 }
 
 .auth-content {
@@ -536,7 +679,6 @@ export default {
   overflow: hidden;
 }
 
-/* Responsive design */
 @media (max-width: 768px) {
   .auth-content {
     padding: 20px;
