@@ -77,15 +77,15 @@
             <p><strong>Duration:</strong> {{ streamDuration }}</p>
           </div>
           
-          <div class="info-card">
+          <!-- <div class="info-card">
             <h4>Connected Viewers</h4>
             <div v-if="remoteViewers.length === 0" class="no-viewers">
               No viewers connected yet
             </div>
             <div v-for="viewer in remoteViewers" :key="viewer.uid" class="viewer-item">
-              👤 {{ viewer }}
+              👤 {{ viewer.name }}
             </div>
-          </div>
+          </div> -->
         </div>
       </div>
     </div>
@@ -161,6 +161,8 @@ export default {
     } catch (error) {
       console.error('Failed to initialize Agora client:', error);
     }
+
+    console.log("remoteViewers", this.remoteViewers);
   },
   
   beforeUnmount() {
