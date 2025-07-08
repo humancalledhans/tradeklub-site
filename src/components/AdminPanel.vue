@@ -83,7 +83,7 @@
               No viewers connected yet
             </div>
             <div v-for="viewer in remoteViewers" :key="viewer.uid" class="viewer-item">
-              👤 {{ viewer.uid }}
+              👤 {{ viewer }}
             </div>
           </div>
         </div>
