@@ -276,76 +276,63 @@ export default {
             console.log("Preload clones completed");
         },
         startAutoScroll() {
-            console.log('🚀 Starting auto scroll...', { scrollPaused: this.scrollPaused });
-            
-            // ⭐ FIX: Don't check scrollPaused here, let the caller control it
-            // The old logic was: if (this.scrollPaused) return; ❌
-            
-            // Clear any existing animation frame first
-            if (this.scrollInterval) {
-                console.log('⚠️ Clearing existing scroll interval');
-                cancelAnimationFrame(this.scrollInterval);
-                this.scrollInterval = null;
-            }
+        console.log('🚀 Starting auto scroll...', { scrollPaused: this.scrollPaused });
+        
+        if (this.scrollInterval) {
+            console.log('⚠️ Clearing existing scroll interval');
+            cancelAnimationFrame(this.scrollInterval);
+            this.scrollInterval = null;
+        }
 
-            const container = this.$refs.scrollContainer;
-            if (!container) {
-                console.error('❌ Scroll container not found');
+        const container = this.$refs.scrollContainer;
+        if (!container) {
+            console.error('❌ Scroll container not found');
+            return;
+        }
+
+        // Smoother scrolling variables
+        let scrollSpeed = 0.3; // Reduced from 0.5 for smoother motion
+        let cumulativeScroll = 0;
+
+        const scroll = () => {
+            if (this.scrollPaused || this.isProcessing) {
+                this.scrollInterval = requestAnimationFrame(scroll);
                 return;
             }
 
-            let scrollSpeed = 0.5;
-            let cumulativeScroll = 0;
-            // let frameCount = 0;
+            if (!container || !container.parentNode) {
+                console.error('❌ Container no longer exists, stopping scroll');
+                return;
+            }
 
-            const scroll = () => {
-                // frameCount++;
-                
-                // ⭐ FIX: Check scrollPaused inside the animation loop, not at start
-                if (this.scrollPaused || this.isProcessing) {
-                    this.scrollInterval = requestAnimationFrame(scroll);
-                    return;
-                }
+            cumulativeScroll += scrollSpeed;
 
-                // Health check logging
-                // if (frameCount % 300 === 0) {
-                //     console.log(`🔄 Scroll health: frame ${frameCount}, paused: ${this.scrollPaused}, processing: ${this.isProcessing}`);
-                // }
+            if (cumulativeScroll >= 1) {
+                const scrollAmount = Math.floor(cumulativeScroll);
+                container.scrollTop += scrollAmount;
+                cumulativeScroll -= scrollAmount;
+            }
 
-                // Check if container still exists
-                if (!container || !container.parentNode) {
-                    console.error('❌ Container no longer exists, stopping scroll');
-                    return;
-                }
+            // Check if we need to cycle widgets - with buffer zone to prevent rapid cycling
+            const isNearBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+            
+            if (isNearBottom && !this.isProcessing) {
+                console.log('📍 Near bottom, cycling widgets...');
+                this.cycleWidgetsSmooth().catch(error => {
+                    console.error('❌ Error in cycleWidgetsSmooth:', error);
+                    this.isProcessing = false;
+                });
+            }
 
-                cumulativeScroll += scrollSpeed;
+            this.scrollInterval = requestAnimationFrame(scroll);
+        };
 
-                if (cumulativeScroll >= 1) {
-                    const scrollAmount = Math.floor(cumulativeScroll);
-                    container.scrollTop += scrollAmount;
-                    cumulativeScroll -= scrollAmount;
-                }
+        console.log('✅ Auto scroll animation started');
+        scroll();
+    },
 
-                // Check if we need to cycle widgets
-                const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-                
-                if (isAtBottom) {
-                    console.log('📍 Reached bottom, cycling widgets...');
-                    this.cycleWidgets().catch(error => {
-                        console.error('❌ Error in cycleWidgets:', error);
-                        this.isProcessing = false;
-                    });
-                }
-
-                this.scrollInterval = requestAnimationFrame(scroll);
-            };
-
-            console.log('✅ Auto scroll animation started');
-            scroll();
-        },
-
-    async cycleWidgets() {
-        console.log('🔄 Starting widget cycle...');
+    async cycleWidgetsSmooth() {
+        console.log('🔄 Starting smooth widget cycle...');
         
         if (this.isProcessing) {
             console.log('⚠️ Already processing, skipping cycle');
@@ -353,7 +340,6 @@ export default {
         }
         
         this.isProcessing = true;
-        // const startTime = Date.now();
 
         try {
             const container = this.$refs.scrollContainer;
@@ -364,68 +350,75 @@ export default {
                 return;
             }
 
-            const firstWidget = gridContainer.firstElementChild;
-            if (!firstWidget) {
-                console.error('❌ No first widget found');
+            // Get current widgets
+            const widgets = Array.from(gridContainer.children);
+            if (widgets.length === 0) {
+                console.error('❌ No widgets found');
                 return;
             }
 
-            console.log(`📊 Widgets before cycle: ${gridContainer.children.length}`);
+            console.log(`📊 Current widgets: ${widgets.length}`);
 
-            // Create new widget first
-            const clonedWidget = firstWidget.cloneNode(true);
+            // Create new widget at the bottom
             const symbolIndex = (this.currentSymbolIndex++) % this.widgetSymbols.length;
             const symbol = this.widgetSymbols[symbolIndex];
 
-            console.log(`➕ Adding new widget with symbol: ${symbol} (index: ${symbolIndex})`);
+            console.log(`➕ Adding new widget with symbol: ${symbol}`);
 
-            // Add to DOM
-            gridContainer.appendChild(clonedWidget);
+            // Clone the first widget structure but don't remove it yet
+            const templateWidget = widgets[0];
+            const newWidget = templateWidget.cloneNode(true);
+            
+            // Add new widget to the bottom
+            gridContainer.appendChild(newWidget);
 
-            // ⭐ FIX: Add timeout to widget initialization
-            const initPromise = this.initializeTradingViewWidgetForClone(clonedWidget, symbol);
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Widget initialization timeout')), 5000)
-            );
-
+            // Initialize the new widget
             try {
-                await Promise.race([initPromise, timeoutPromise]);
-                console.log(`✅ Widget initialized: ${symbol}`);
+                await this.initializeTradingViewWidgetForClone(newWidget, symbol);
+                console.log(`✅ New widget initialized: ${symbol}`);
             } catch (error) {
-                console.warn(`⚠️ Widget initialization failed/timeout: ${symbol}`, error);
-                // Continue anyway - don't let one widget break the cycle
+                console.warn(`⚠️ Widget initialization failed: ${symbol}`, error);
             }
 
-            // ⭐ FIX: Reduced wait time to prevent stalling
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // Small delay to ensure the widget is rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-            // Adjust scroll position
-            const widgetHeight = firstWidget.offsetHeight + 10;
-            const oldScrollTop = container.scrollTop;
-            container.scrollTop = Math.max(0, container.scrollTop - widgetHeight);
+            // Smooth transition: gradually move scroll position
+            const firstWidget = widgets[0];
+            const widgetHeight = firstWidget.offsetHeight + 10; // Include gap
+
+            // Smoothly adjust scroll to hide the removal of the top widget
+            const targetScrollTop = Math.max(0, container.scrollTop - widgetHeight);
             
-            console.log(`📏 Adjusted scroll: ${oldScrollTop} -> ${container.scrollTop} (height: ${widgetHeight})`);
+            // Use smooth scrolling transition
+            container.style.scrollBehavior = 'smooth';
+            container.scrollTop = targetScrollTop;
+            
+            // Wait for smooth scroll to complete
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Reset scroll behavior
+            container.style.scrollBehavior = 'auto';
 
-            // Remove the old widget
+            // Now remove the first widget
             if (gridContainer.contains(firstWidget)) {
                 gridContainer.removeChild(firstWidget);
-                console.log('➖ Removed old widget');
+                console.log('➖ Removed old widget smoothly');
             }
 
-            // console.log(`📊 Widgets after cycle: ${gridContainer.children.length}`);
-            // console.log(`⏱️ Cycle completed in ${Date.now() - startTime}ms`);
+            console.log(`📊 Widgets after smooth cycle: ${gridContainer.children.length}`);
 
         } catch (error) {
-            console.error('❌ Error cycling widgets:', error);
+            console.error('❌ Error in smooth cycling:', error);
             
-            // ⭐ FIX: Reset scroll position if something goes wrong
+            // Reset scroll position if something goes wrong
             const container = this.$refs.scrollContainer;
             if (container) {
                 container.scrollTop = Math.max(0, container.scrollTop - 50);
             }
         } finally {
             this.isProcessing = false;
-            console.log('🏁 Widget cycle processing flag reset');
+            console.log('🏁 Smooth cycle processing flag reset');
         }
     },
 
@@ -896,6 +889,20 @@ export default {
     height: 100%;
     width: 100%;
     position: relative;
+    /* Add smooth scrolling support */
+    scroll-behavior: auto; /* We'll control this programmatically */
+    
+    /* Ensure hardware acceleration for smooth scrolling */
+    transform: translateZ(0);
+    will-change: scroll-position;
+    
+    /* Hide scrollbar for cleaner look */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scroll-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }
 
 .grid-container {
@@ -903,7 +910,13 @@ export default {
     flex-direction: column;
     gap: 10px;
     width: 100%;
+    
+    /* Improve rendering performance */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
 }
+
 
 .grid-item {
     display: flex;
@@ -916,12 +929,61 @@ export default {
     background-color: #1e1e1e;
     border: 1px solid #333;
     overflow: hidden;
-    transition: transform 0.3s ease;
+    
+    /* Enhanced transitions for smoother movement */
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    
+    /* Hardware acceleration */
+    transform: translateZ(0);
+    will-change: transform, opacity;
+    
+    /* Prevent layout shifts */
+    contain: layout style paint;
 }
 
 .tradingview-widget-container {
     min-height: 100%;
     background-color: #1e1e1e;
+    
+    /* Improve widget rendering */
+    contain: layout style paint;
+    transform: translateZ(0);
+}
+
+
+/* Smooth fade-in for new widgets */
+.grid-item.widget-entering {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: slideInUp 0.3s ease-out forwards;
+}
+
+.grid-item.widget-leaving {
+    opacity: 1;
+    transform: translateY(0);
+    animation: slideOutUp 0.3s ease-out forwards;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideOutUp {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
 }
 
 .widget-loading {
@@ -932,6 +994,10 @@ export default {
     color: #666;
     font-size: 14px;
     background-color: #1e1e1e;
+    
+    /* Smooth fade-in */
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out forwards;
 }
 
 .widget-loading::after {
@@ -955,17 +1021,44 @@ export default {
     background-color: #2a1f1f;
     text-align: center;
     padding: 10px;
+    
+    /* Smooth appearance */
+    opacity: 0;
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes spin {
     0% {
         transform: rotate(0deg);
     }
-
     100% {
         transform: rotate(360deg);
     }
 }
+
+/* Performance optimizations for mobile */
+@media (max-width: 768px) {
+    .grid-item {
+        /* Reduce transitions on mobile for better performance */
+        transition: none;
+    }
+    
+    .scroll-container {
+        /* Optimize for mobile scrolling */
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
 
 .rss-widget-wrapper {
     width: 100%;
