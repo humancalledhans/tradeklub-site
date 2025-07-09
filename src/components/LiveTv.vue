@@ -71,9 +71,9 @@
                     @mouseenter="onMouseEnterScrollContainer"
                     @mouseleave="onMouseLeaveScrollContainer">
                     <div class="grid-container">
-                        <div v-for="(widget, index) in widgetSymbols" :key="index" class="grid-item">
+                        <!-- <div v-for="(widget, index) in widgetSymbols" :key="index" class="grid-item">
                             <div class="tradingview-widget-container" :ref="'tradingViewWidget' + index"></div>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
@@ -121,6 +121,12 @@ export default {
             scrollPaused: false,
             widgetInitQueue: [],
             isProcessing: false,
+            virtualWidgets: [], // Our infinite widget array
+            visibleStartIndex: 0, // Which widget is at the top
+            widgetHeight: 210, // Fixed height per widget (200px + 10px gap)
+            bufferSize: 20, // How many widgets to keep in DOM
+            scrollOffset: 0, // Current scroll position within the virtual list
+            isInitialized: false,
         };
     },
     computed: {
@@ -139,12 +145,339 @@ export default {
             const widgetWidth = thirdColumnWidth;
             return { widgetHeight, widgetWidth, rows };
         },
+        // Calculate visible widgets based on scroll position
         visibleWidgets() {
-            const rows = this.widgetContainerDimensions.rows;
-            return this.widgetSymbols.slice(0, rows);
-        },
+            const startIndex = this.visibleStartIndex;
+            const endIndex = startIndex + this.bufferSize;
+            return this.virtualWidgets.slice(startIndex, endIndex);
+        }
     },
     methods: {
+        // 1. Initialize the infinite virtual widget array
+        initializeInfiniteWidgets() {
+            console.log('🔄 Initializing infinite widget system...');
+            
+            const repeatCount = 500; // Reduced from 1000 for better performance
+            this.virtualWidgets = [];
+            
+            for (let i = 0; i < this.widgetSymbols.length * repeatCount; i++) {
+                const symbolIndex = i % this.widgetSymbols.length;
+                this.virtualWidgets.push({
+                    id: `widget-${i}`,
+                    symbol: this.widgetSymbols[symbolIndex],
+                    isInitialized: false
+                });
+            }
+            
+            // Start in the middle
+            this.visibleStartIndex = Math.floor(this.virtualWidgets.length / 2);
+            
+            console.log(`✅ Created ${this.virtualWidgets.length} virtual widgets, starting at index ${this.visibleStartIndex}`);
+        },
+
+        createWidgetElement(virtualWidget) {
+            if (!virtualWidget) {
+                console.error('❌ Virtual widget is undefined');
+                return null;
+            }
+            
+            try {
+                const widgetElement = document.createElement('div');
+                widgetElement.className = 'grid-item';
+                widgetElement.setAttribute('data-widget-id', virtualWidget.id);
+                widgetElement.setAttribute('data-symbol', virtualWidget.symbol);
+                
+                const innerContainer = document.createElement('div');
+                innerContainer.className = 'tradingview-widget-container';
+                widgetElement.appendChild(innerContainer);
+                
+                return widgetElement;
+                
+            } catch (error) {
+                console.error('❌ Error creating widget element:', error);
+                return null;
+            }
+        },
+        
+        // 2. Render only the visible widgets in DOM
+        async renderVisibleWidgets() {
+            console.log('🎨 Rendering visible widgets...');
+            
+            const container = this.$refs.scrollContainer;
+            if (!container) {
+                console.error('❌ Scroll container not found');
+                return;
+            }
+            
+            const gridContainer = container.querySelector(".grid-container");
+            if (!gridContainer) {
+                console.error('❌ Grid container not found');
+                return;
+            }
+            
+            // Clear existing widgets
+            gridContainer.innerHTML = '';
+            
+            // Render buffer widgets sequentially
+            for (let i = 0; i < this.bufferSize; i++) {
+                const widgetIndex = this.visibleStartIndex + i;
+                const virtualWidget = this.virtualWidgets[widgetIndex];
+                
+                if (!virtualWidget) {
+                    console.warn(`⚠️ Virtual widget at index ${widgetIndex} not found`);
+                    continue;
+                }
+                
+                const widgetElement = this.createWidgetElement(virtualWidget);
+                if (!widgetElement) {
+                    console.warn(`⚠️ Failed to create DOM element for ${virtualWidget.symbol}`);
+                    continue;
+                }
+                
+                gridContainer.appendChild(widgetElement);
+                await this.$nextTick();
+                
+                try {
+                    await this.initializeTradingViewWidget(widgetElement, virtualWidget.symbol);
+                    virtualWidget.isInitialized = true;
+                    console.log(`✅ Initialized widget ${i + 1}/${this.bufferSize}: ${virtualWidget.symbol}`);
+                } catch (error) {
+                    console.warn(`⚠️ Failed to initialize widget: ${virtualWidget.symbol}`, error);
+                    const errorContainer = widgetElement.querySelector('.tradingview-widget-container');
+                    if (errorContainer) {
+                        errorContainer.innerHTML = `<div class="widget-error">Failed: ${virtualWidget.symbol}</div>`;
+                    }
+                }
+                
+                // Delay between widgets to prevent API overload
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+            
+            console.log(`✅ Rendered ${this.bufferSize} widgets`);
+        },
+        
+        // 3. Handle smooth scrolling with virtual positioning
+        startInfiniteScroll() {
+            console.log('🚀 Starting bulletproof infinite scroll...');
+            
+            if (this.scrollInterval) {
+                cancelAnimationFrame(this.scrollInterval);
+                this.scrollInterval = null;
+            }
+            
+            const container = this.$refs.scrollContainer;
+            if (!container) {
+                console.error('❌ Scroll container not found');
+                return;
+            }
+            
+            let scrollSpeed = 0.4;
+            let lastUpdateTime = 0;
+            
+            const scroll = (currentTime) => {
+                if (this.scrollPaused) {
+                    this.scrollInterval = requestAnimationFrame(scroll);
+                    return;
+                }
+                
+                if (!container || !container.parentNode) {
+                    console.error('❌ Container no longer exists');
+                    return;
+                }
+                
+                // Throttle to 60fps
+                if (currentTime - lastUpdateTime < 16) {
+                    this.scrollInterval = requestAnimationFrame(scroll);
+                    return;
+                }
+                lastUpdateTime = currentTime;
+                
+                // Update scroll position
+                this.scrollOffset += scrollSpeed;
+                
+                // Check if we need to shift the window
+                if (this.scrollOffset >= this.widgetHeight) {
+                    this.shiftWindow().catch(error => {
+                        console.error('❌ Error in shiftWindow:', error);
+                        this.isProcessing = false;
+                    });
+                    this.scrollOffset = 0;
+                }
+                
+                // Update DOM scroll position
+                container.scrollTop = this.scrollOffset;
+                this.scrollInterval = requestAnimationFrame(scroll);
+            };
+            
+            this.scrollInterval = requestAnimationFrame(scroll);
+            console.log('✅ Infinite scroll started');
+        },
+        
+        // 4. Shift the viewing window (this is where the magic happens)
+        async shiftWindow() {
+            if (this.isProcessing) return;
+            this.isProcessing = true;
+            
+            try {
+                const container = this.$refs.scrollContainer;
+                const gridContainer = container?.querySelector(".grid-container");
+                
+                if (!container || !gridContainer) {
+                    console.error('❌ Container not found during shift');
+                    return;
+                }
+                
+                // Move to next widget in virtual array
+                this.visibleStartIndex++;
+                
+                const widgets = Array.from(gridContainer.children);
+                if (widgets.length === 0) {
+                    console.error('❌ No widgets found during shift');
+                    return;
+                }
+                
+                // Remove the first widget
+                const firstWidget = widgets[0];
+                if (firstWidget && gridContainer.contains(firstWidget)) {
+                    gridContainer.removeChild(firstWidget);
+                }
+                
+                // Add new widget at the bottom
+                const newWidgetIndex = this.visibleStartIndex + this.bufferSize - 1;
+                const newVirtualWidget = this.virtualWidgets[newWidgetIndex];
+                
+                if (newVirtualWidget) {
+                    const newWidgetElement = this.createWidgetElement(newVirtualWidget);
+                    
+                    if (newWidgetElement) {
+                        gridContainer.appendChild(newWidgetElement);
+                        await this.$nextTick();
+                        
+                        try {
+                            await this.initializeTradingViewWidget(newWidgetElement, newVirtualWidget.symbol);
+                            newVirtualWidget.isInitialized = true;
+                        } catch (error) {
+                            console.warn(`⚠️ Failed to initialize new widget: ${newVirtualWidget.symbol}`, error);
+                            const errorContainer = newWidgetElement.querySelector('.tradingview-widget-container');
+                            if (errorContainer) {
+                                errorContainer.innerHTML = `<div class="widget-error">Failed: ${newVirtualWidget.symbol}</div>`;
+                            }
+                        }
+                    }
+                }
+                
+                // Reset scroll position
+                container.scrollTop = 0;
+                
+            } catch (error) {
+                console.error('❌ Error during window shift:', error);
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+        
+        // 5. Initialize a single TradingView widget
+        async initializeTradingViewWidget() {
+            const container = this.$refs.tradingViewWidget;
+            if (container) {
+                container.innerHTML = `
+                    <div style="height:100%;width:100%">
+                        <div style="height:100%;width:100%" id="tradingview-widget"></div>
+                    </div>`;
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+                script.async = true;
+                script.text = JSON.stringify({
+                    "autosize": true,
+                    "symbol": "NASDAQ:AAPL",
+                    "interval": "1",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "allow_symbol_change": true,
+                    "calendar": false,
+                    "studies": ["STD;VWAP"],
+                    "hide_volume": true,
+                    "support_host": "https://www.tradingview.com"
+                });
+                container.querySelector("#tradingview-widget").appendChild(script);
+            }
+        },
+        
+        // 6. Stop infinite scroll
+        stopInfiniteScroll() {
+            console.log('🛑 Stopping infinite scroll...');
+            
+            if (this.scrollInterval) {
+                cancelAnimationFrame(this.scrollInterval);
+                this.scrollInterval = null;
+            }
+        },
+        
+        // 7. Mouse interaction handlers
+        onMouseEnterScrollContainer() {
+            console.log('🖱️ Mouse entered - pausing scroll');
+            this.scrollPaused = true;
+        },
+        
+        onMouseLeaveScrollContainer() {
+            console.log('🖱️ Mouse left - resuming scroll');
+            this.scrollPaused = false;
+        },
+        
+        // 8. Main initialization method
+        async initializeBulletproofScroll() {
+            console.log('🎯 Initializing bulletproof scroll system...');
+            
+            try {
+                if (!this.widgetSymbols || this.widgetSymbols.length === 0) {
+                    throw new Error('widgetSymbols is empty');
+                }
+                
+                const container = this.$refs.scrollContainer;
+                if (!container) {
+                    throw new Error('Scroll container not found');
+                }
+                
+                const gridContainer = container.querySelector('.grid-container');
+                if (!gridContainer) {
+                    throw new Error('Grid container not found');
+                }
+                
+                console.log(`📊 Found ${this.widgetSymbols.length} symbols`);
+                
+                // Step 1: Create virtual widget array
+                this.initializeInfiniteWidgets();
+                
+                // Step 2: Render initial visible widgets
+                await this.renderVisibleWidgets();
+                
+                // Step 3: Start the infinite scroll
+                this.startInfiniteScroll();
+                
+                this.isInitialized = true;
+                console.log('✅ Bulletproof scroll system initialized');
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize bulletproof scroll:', error);
+                
+                const container = this.$refs.scrollContainer;
+                if (container) {
+                    const gridContainer = container.querySelector('.grid-container');
+                    if (gridContainer) {
+                        gridContainer.innerHTML = `
+                            <div class="initialization-error">
+                                <h3>Scroll system failed</h3>
+                                <p>${error.message}</p>
+                                <button onclick="location.reload()">Reload</button>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        },
         async login() {
             const auth = getAuth();
             try {
@@ -275,11 +608,179 @@ export default {
             container.scrollTop = 0;
             console.log("Preload clones completed");
         },
-        startAutoScroll() {
-        console.log('🚀 Starting auto scroll...', { scrollPaused: this.scrollPaused });
+    //     startAutoScroll() {
+    //     console.log('🚀 Starting auto scroll...', { scrollPaused: this.scrollPaused });
+        
+    //     if (this.scrollInterval) {
+    //         console.log('⚠️ Clearing existing scroll interval');
+    //         cancelAnimationFrame(this.scrollInterval);
+    //         this.scrollInterval = null;
+    //     }
+
+    //     const container = this.$refs.scrollContainer;
+    //     if (!container) {
+    //         console.error('❌ Scroll container not found');
+    //         return;
+    //     }
+
+    //     // Smoother scrolling variables
+    //     let scrollSpeed = 0.3; // Reduced from 0.5 for smoother motion
+    //     let cumulativeScroll = 0;
+
+    //     const scroll = () => {
+    //         if (this.scrollPaused || this.isProcessing) {
+    //             this.scrollInterval = requestAnimationFrame(scroll);
+    //             return;
+    //         }
+
+    //         if (!container || !container.parentNode) {
+    //             console.error('❌ Container no longer exists, stopping scroll');
+    //             return;
+    //         }
+
+    //         cumulativeScroll += scrollSpeed;
+
+    //         if (cumulativeScroll >= 1) {
+    //             const scrollAmount = Math.floor(cumulativeScroll);
+    //             container.scrollTop += scrollAmount;
+    //             cumulativeScroll -= scrollAmount;
+    //         }
+
+    //         // Check if we need to cycle widgets - with buffer zone to prevent rapid cycling
+    //         const isNearBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+            
+    //         if (isNearBottom && !this.isProcessing) {
+    //             console.log('📍 Near bottom, cycling widgets...');
+    //             this.cycleWidgetsSmooth().catch(error => {
+    //                 console.error('❌ Error in cycleWidgetsSmooth:', error);
+    //                 this.isProcessing = false;
+    //             });
+    //         }
+
+    //         this.scrollInterval = requestAnimationFrame(scroll);
+    //     };
+
+    //     console.log('✅ Auto scroll animation started');
+    //     scroll();
+    // },
+
+    async initializeInfiniteScroll() {
+        console.log('🔄 Initializing infinite scroll with buffer...');
+        
+        const container = this.$refs.scrollContainer;
+        const gridContainer = container?.querySelector(".grid-container");
+        
+        if (!container || !gridContainer) {
+            console.error('❌ Container not found for infinite scroll');
+            return;
+        }
+
+        // Create a larger buffer of widgets (2x visible area)
+        const visibleRows = Math.ceil(container.clientHeight / 210); // 200px + 10px gap
+        const bufferSize = visibleRows * 3; // 3x buffer for smooth scrolling
+        
+        console.log(`📏 Visible rows: ${visibleRows}, Buffer size: ${bufferSize}`);
+
+        // Clear existing widgets
+        gridContainer.innerHTML = '';
+
+        // Create buffer widgets
+        for (let i = 0; i < bufferSize; i++) {
+            const symbolIndex = i % this.widgetSymbols.length;
+            const symbol = this.widgetSymbols[symbolIndex];
+            
+            const widgetElement = document.createElement('div');
+            widgetElement.className = 'grid-item';
+            widgetElement.innerHTML = '<div class="tradingview-widget-container"></div>';
+            
+            gridContainer.appendChild(widgetElement);
+            
+            try {
+                await this.initializeTradingViewWidgetForClone(widgetElement, symbol);
+                console.log(`✅ Buffer widget ${i + 1}/${bufferSize} initialized: ${symbol}`);
+            } catch (error) {
+                console.warn(`⚠️ Buffer widget ${i + 1} failed: ${symbol}`, error);
+            }
+            
+            // Small delay between initializations
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        // Set initial scroll position to middle of buffer
+        const middlePosition = (bufferSize / 2) * 210;
+        container.scrollTop = middlePosition;
+        
+        console.log(`📍 Set initial scroll position to middle: ${middlePosition}px`);
+    },
+
+    // 4. Updated infinite scroll cycling (use this with initializeInfiniteScroll)
+    async maintainInfiniteScroll() {
+        const container = this.$refs.scrollContainer;
+        const gridContainer = container?.querySelector(".grid-container");
+        
+        if (!container || !gridContainer || this.isProcessing) {
+            return;
+        }
+
+        // const widgets = Array.from(gridContainer.children);
+        const visibleRows = Math.ceil(container.clientHeight / 210);
+        const scrollTop = container.scrollTop;
+        const widgetHeight = 210;
+        
+        // If we're near the bottom, add more widgets and remove from top
+        if (scrollTop + container.clientHeight >= container.scrollHeight - (widgetHeight * 2)) {
+            this.isProcessing = true;
+            
+            try {
+                // Add new widgets at bottom
+                for (let i = 0; i < visibleRows; i++) {
+                    const symbolIndex = (this.currentSymbolIndex++) % this.widgetSymbols.length;
+                    const symbol = this.widgetSymbols[symbolIndex];
+                    
+                    const widgetElement = document.createElement('div');
+                    widgetElement.className = 'grid-item';
+                    widgetElement.innerHTML = '<div class="tradingview-widget-container"></div>';
+                    
+                    gridContainer.appendChild(widgetElement);
+                    
+                    try {
+                        await this.initializeTradingViewWidgetForClone(widgetElement, symbol);
+                    } catch (error) {
+                        console.warn(`⚠️ Infinite scroll widget failed: ${symbol}`, error);
+                    }
+                }
+                
+                // Remove excess widgets from top
+                const currentWidgets = Array.from(gridContainer.children);
+                const maxWidgets = visibleRows * 4; // Keep 4x buffer
+                
+                if (currentWidgets.length > maxWidgets) {
+                    const removeCount = currentWidgets.length - maxWidgets;
+                    const removedHeight = removeCount * widgetHeight;
+                    
+                    for (let i = 0; i < removeCount; i++) {
+                        if (currentWidgets[i]) {
+                            gridContainer.removeChild(currentWidgets[i]);
+                        }
+                    }
+                    
+                    // Adjust scroll position to maintain visual continuity
+                    container.scrollTop = Math.max(0, container.scrollTop - removedHeight);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error maintaining infinite scroll:', error);
+            } finally {
+                this.isProcessing = false;
+            }
+        }
+    },
+
+    // 5. Updated startAutoScroll for infinite scroll approach
+    startAutoScroll() {
+        console.log('🚀 Starting infinite auto scroll...');
         
         if (this.scrollInterval) {
-            console.log('⚠️ Clearing existing scroll interval');
             cancelAnimationFrame(this.scrollInterval);
             this.scrollInterval = null;
         }
@@ -290,8 +791,7 @@ export default {
             return;
         }
 
-        // Smoother scrolling variables
-        let scrollSpeed = 0.3; // Reduced from 0.5 for smoother motion
+        let scrollSpeed = 0.2; // Even smoother for infinite scroll
         let cumulativeScroll = 0;
 
         const scroll = () => {
@@ -313,21 +813,13 @@ export default {
                 cumulativeScroll -= scrollAmount;
             }
 
-            // Check if we need to cycle widgets - with buffer zone to prevent rapid cycling
-            const isNearBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
-            
-            if (isNearBottom && !this.isProcessing) {
-                console.log('📍 Near bottom, cycling widgets...');
-                this.cycleWidgetsSmooth().catch(error => {
-                    console.error('❌ Error in cycleWidgetsSmooth:', error);
-                    this.isProcessing = false;
-                });
-            }
+            // Maintain infinite scroll buffer
+            this.maintainInfiniteScroll();
 
             this.scrollInterval = requestAnimationFrame(scroll);
         };
 
-        console.log('✅ Auto scroll animation started');
+        console.log('✅ Infinite auto scroll started');
         scroll();
     },
 
@@ -432,24 +924,6 @@ export default {
         }
     },
 
-    onMouseEnterScrollContainer() {
-        console.log('🖱️ Mouse entered scroll container - pausing scroll');
-        this.scrollPaused = true;
-    },
-
-    onMouseLeaveScrollContainer() {
-        console.log('🖱️ Mouse left scroll container - resuming scroll');
-        this.scrollPaused = false;
-        
-        // ⭐ FIX: Don't restart the entire animation, just unpause
-        // The animation loop is still running, just unpaused
-        
-        // Only restart if the animation has actually stopped
-        if (!this.scrollInterval) {
-            console.log('🔄 Animation stopped, restarting...');
-            this.startAutoScroll();
-        }
-    },
 
 
     // ⭐ NEW: Method to restart scrolling if it gets stuck
@@ -645,34 +1119,6 @@ export default {
                 }
             });
         },
-        initializeTradingViewWidget() {
-            const container = this.$refs.tradingViewWidget;
-            if (container) {
-                container.innerHTML = `
-                    <div style="height:100%;width:100%">
-                        <div style="height:100%;width:100%" id="tradingview-widget"></div>
-                    </div>`;
-                const script = document.createElement("script");
-                script.type = "text/javascript";
-                script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-                script.async = true;
-                script.text = JSON.stringify({
-                    "autosize": true,
-                    "symbol": "NASDAQ:AAPL",
-                    "interval": "1",
-                    "timezone": "Etc/UTC",
-                    "theme": "dark",
-                    "style": "1",
-                    "locale": "en",
-                    "allow_symbol_change": true,
-                    "calendar": false,
-                    "studies": ["STD;VWAP"],
-                    "hide_volume": true,
-                    "support_host": "https://www.tradingview.com"
-                });
-                container.querySelector("#tradingview-widget").appendChild(script);
-            }
-        },
     },
     async mounted() {
         this.calculateHeights();
@@ -704,7 +1150,7 @@ export default {
             console.log("Initializing main TradingView widgets...");
             await this.initializeTradingViewWidget();
             await this.initializeTradingViewEventsWidget();
-            await this.initializeTradingViewMiniChartWidgets();
+            // await this.initializeTradingViewMiniChartWidgets();
 
             await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -741,9 +1187,11 @@ export default {
     },
     beforeUnmount() {
         this.scrollPaused = true;
-        this.stopAutoScroll();
+        this.stopInfiniteScroll();
         this.widgetLoadingStates = {};
+        this.virtualWidgets = [];
         this.enableScrolling();
+
         window.removeEventListener("resize", this.calculateHeights);
         window.removeEventListener("resize", this.updateChatDimensions);
         window.removeEventListener("resize", this.handleResize);
@@ -885,18 +1333,16 @@ export default {
 }
 
 .scroll-container {
-    overflow: hidden;
+    overflow: hidden; /* Critical: hide overflow to prevent seeing the manipulation */
     height: 100%;
     width: 100%;
     position: relative;
-    /* Add smooth scrolling support */
-    scroll-behavior: auto; /* We'll control this programmatically */
     
-    /* Ensure hardware acceleration for smooth scrolling */
+    /* Hardware acceleration for smooth scrolling */
     transform: translateZ(0);
     will-change: scroll-position;
     
-    /* Hide scrollbar for cleaner look */
+    /* Ensure consistent behavior across browsers */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
 }
@@ -911,12 +1357,13 @@ export default {
     gap: 10px;
     width: 100%;
     
-    /* Improve rendering performance */
+    /* Critical: Prevent any layout shifts during DOM manipulation */
+    contain: layout style paint;
+    
+    /* Hardware acceleration */
     transform: translateZ(0);
     backface-visibility: hidden;
-    perspective: 1000px;
 }
-
 
 .grid-item {
     display: flex;
@@ -930,26 +1377,32 @@ export default {
     border: 1px solid #333;
     overflow: hidden;
     
-    /* Enhanced transitions for smoother movement */
-    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    /* Critical: Fixed height to ensure consistent calculations */
+    height: 200px;
+    flex-shrink: 0; /* Prevent shrinking */
     
-    /* Hardware acceleration */
-    transform: translateZ(0);
-    will-change: transform, opacity;
-    
-    /* Prevent layout shifts */
+    /* Performance optimizations */
     contain: layout style paint;
+    transform: translateZ(0);
+    will-change: transform;
+    
+    /* Remove transitions that might interfere with smooth scrolling */
+    transition: none;
 }
 
 .tradingview-widget-container {
-    min-height: 100%;
+    width: 100%;
+    height: 100%;
     background-color: #1e1e1e;
     
-    /* Improve widget rendering */
+    /* Optimize widget rendering */
     contain: layout style paint;
     transform: translateZ(0);
+    
+    /* Ensure widgets don't cause layout shifts */
+    position: relative;
+    overflow: hidden;
 }
-
 
 /* Smooth fade-in for new widgets */
 .grid-item.widget-entering {
@@ -991,20 +1444,20 @@ export default {
     align-items: center;
     justify-content: center;
     height: 100%;
+    width: 100%;
     color: #666;
     font-size: 14px;
     background-color: #1e1e1e;
-    
-    /* Smooth fade-in */
-    opacity: 0;
-    animation: fadeIn 0.5s ease-out forwards;
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 .widget-loading::after {
     content: '';
-    width: 20px;
-    height: 20px;
-    margin-left: 10px;
+    width: 16px;
+    height: 16px;
+    margin-left: 8px;
     border: 2px solid #333;
     border-top: 2px solid #666;
     border-radius: 50%;
@@ -1016,15 +1469,16 @@ export default {
     align-items: center;
     justify-content: center;
     height: 100%;
+    width: 100%;
     color: #ff6b6b;
     font-size: 12px;
     background-color: #2a1f1f;
     text-align: center;
     padding: 10px;
-    
-    /* Smooth appearance */
-    opacity: 0;
-    animation: fadeIn 0.3s ease-out forwards;
+    box-sizing: border-box;
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 
@@ -1163,5 +1617,56 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+/* Critical: Ensure consistent spacing */
+.grid-container > .grid-item:not(:last-child) {
+    margin-bottom: 10px;
+}
+
+.grid-container > .grid-item:last-child {
+    margin-bottom: 0;
+}
+
+/* Performance optimizations for lower-end devices */
+@media (max-width: 768px) {
+    .grid-item {
+        /* Reduce complexity on mobile */
+        will-change: auto;
+        transform: none;
+    }
+    
+    .tradingview-widget-container {
+        /* Simplify widget containers on mobile */
+        will-change: auto;
+        transform: none;
+    }
+}
+
+/* High-performance mode for modern browsers */
+@supports (contain: layout style paint) {
+    .grid-item {
+        contain: layout style paint;
+    }
+    
+    .tradingview-widget-container {
+        contain: layout style paint;
+    }
+}
+
+/* Critical: Ensure no visual glitches during DOM manipulation */
+.grid-container {
+    /* Prevent flash of unstyled content */
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Add this class during initialization to hide flickers */
+.scroll-container.initializing {
+    visibility: hidden;
+}
+
+.scroll-container.ready {
+    visibility: visible;
 }
 </style>
