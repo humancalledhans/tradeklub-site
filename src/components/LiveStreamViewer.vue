@@ -5,9 +5,9 @@
       <div class="auth-content">
         <h3>Authentication Required</h3>
         <p>Please log in to access the live streaming session</p>
-        <button @click="triggerParentLogin" class="login-button">
+        <!-- <button @click="triggerParentLogin" class="login-button">
           Login
-        </button>
+        </button> -->
       </div>
     </div>
 
