@@ -36,7 +36,7 @@
                 Viewers ({{ viewerCount }})
               </button>
             </div>
-            <div class="tab-content">
+            <!-- <div class="tab-content">
               <ul v-if="activeTab === 'viewers'">
                 <li v-for="(viewer, index) in connectedViewers" :key="index">
                   👤 {{ viewer.name || viewer.uid }}
@@ -45,7 +45,7 @@
               <div v-if="connectedViewers.length === 0" class="no-viewers">
                 No other viewers connected
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
       </div>
