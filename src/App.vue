@@ -3,7 +3,7 @@
     <!-- Not Available Mode -->
     <div v-if="isNotAvailable" class="unavailable-container">
       <div class="unavailable-content">
-        <h1>❌ Not Available</h1>
+        <h1>Not Available</h1>
         <p>This service is currently not available.</p>
         <p>Thank you for your understanding.</p>
       </div>
