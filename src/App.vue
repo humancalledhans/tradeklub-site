@@ -29,7 +29,7 @@ export default {
   },
   data() {
     return {
-      isNotAvailable: true, // Set to true to show "Not Available" page
+      isNotAvailable: false, // Set to true to show "Not Available" page
     };
   },
 };
